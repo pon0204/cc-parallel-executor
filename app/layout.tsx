@@ -1,8 +1,10 @@
 import './globals.css'
+import { Providers } from '@/lib/providers'
+import { Toaster } from '@/components/ui/toaster'
 
 export const metadata = {
-  title: 'Claude Code ターミナル',
-  description: '並列実行可能なClaude Codeウェブターミナル',
+  title: 'CC Parallel Execution System',
+  description: 'Claude Code並列実行システム',
 }
 
 export default function RootLayout({
@@ -12,7 +14,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ja" className="dark">
-      <body>{children}</body>
+      <body>
+        <Providers>
+          {children}
+          <Toaster />
+        </Providers>
+      </body>
     </html>
   )
 }

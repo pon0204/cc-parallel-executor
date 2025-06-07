@@ -1,0 +1,255 @@
+# CC並列実行システム タスク定義構造サンプル
+# このファイルは、CC並列実行システムで使用するタスク定義の構造を示すサンプルです
+
+# プロジェクトメタデータ
+project:
+  id: "proj-001"
+  name: "ECサイトリニューアルプロジェクト"
+  version: "1.0.0"
+  created_at: "2024-01-15T10:00:00Z"
+
+# グローバル設定
+settings:
+  max_parallel_cc: 5              # 最大並列CC数
+  default_timeout: 300            # デフォルトタイムアウト（秒）
+  retry_count: 3                  # リトライ回数
+  log_level: "info"               # ログレベル
+
+# タスク定義
+tasks:
+  # APIバックエンド実装タスク
+  - id: "task-001"
+    name: "ユーザー認証API実装"
+    description: "JWT認証を使用したユーザー認証APIの実装"
+    type: "development"
+    priority: 10                  # 優先度（1-10、10が最高）
+    dependencies: []              # 依存タスクなし
+    assigned_cc_type: "child"     # 実行するCCタイプ
+    
+    # タスク固有の設定
+    config:
+      language: "typescript"
+      framework: "express"
+      test_required: true
+      
+    # 入力パラメータ
+    input:
+      source_files:
+        - "src/models/user.ts"
+        - "src/routes/auth.ts"
+      requirements:
+        - "パスワードはbcryptでハッシュ化"
+        - "JWTトークンの有効期限は24時間"
+        - "リフレッシュトークン機能を実装"
+        
+    # 親CCから子CCへの指示（ultrathinkプロトコル）
+    instruction: |
+      ultrathink
+      ユーザー認証API実装タスクを開始してください。
+      要件:
+      - JWT認証の実装
+      - bcryptによるパスワードハッシュ化
+      - リフレッシュトークン機能
+      テストケースも含めて実装し、完了後は進捗を報告してください。
+        
+    # 期待される出力
+    output:
+      files:
+        - "src/controllers/authController.ts"
+        - "src/middleware/authMiddleware.ts"
+        - "tests/auth.test.ts"
+      artifacts:
+        - type: "api_documentation"
+          format: "openapi"
+          
+    # 実行スクリプト（CC実行時のプロンプト）
+    script: |
+      以下の要件に基づいてユーザー認証APIを実装してください：
+      1. JWT認証の実装
+      2. ユーザー登録エンドポイント（/api/auth/register）
+      3. ログインエンドポイント（/api/auth/login）
+      4. トークンリフレッシュエンドポイント（/api/auth/refresh）
+      5. 適切なエラーハンドリング
+      6. ユニットテストの作成
+
+  # データベース設計タスク
+  - id: "task-002"
+    name: "商品データベース設計"
+    description: "商品管理のためのデータベーススキーマ設計"
+    type: "design"
+    priority: 9
+    dependencies: []
+    assigned_cc_type: "child"
+    
+    config:
+      database: "postgresql"
+      include_migration: true
+      
+    input:
+      requirements:
+        - "商品の多言語対応"
+        - "在庫管理機能"
+        - "カテゴリの階層構造"
+        - "商品バリエーション（サイズ、色）"
+        
+    output:
+      files:
+        - "docs/db/product_schema.sql"
+        - "migrations/001_create_products.sql"
+        - "docs/db/product_er_diagram.md"
+        
+    script: |
+      商品管理データベースの設計を行ってください：
+      1. テーブル設計（products, categories, inventory等）
+      2. インデックス設計
+      3. 外部キー制約
+      4. ER図の作成
+      5. マイグレーションファイルの生成
+
+  # フロントエンド実装タスク
+  - id: "task-003"
+    name: "商品一覧画面実装"
+    description: "React/Next.jsを使用した商品一覧画面の実装"
+    type: "development"
+    priority: 7
+    dependencies: ["task-001", "task-002"]  # 認証APIとDB設計に依存
+    assigned_cc_type: "child"
+    
+    config:
+      framework: "nextjs"
+      styling: "tailwindcss"
+      state_management: "zustand"
+      
+    input:
+      design_files:
+        - "designs/product_list.figma"
+      api_spec:
+        - "docs/api/products.yaml"
+        
+    output:
+      files:
+        - "pages/products/index.tsx"
+        - "components/ProductCard.tsx"
+        - "components/ProductFilter.tsx"
+        - "hooks/useProducts.ts"
+        - "tests/products.test.tsx"
+        
+    script: |
+      商品一覧画面を実装してください：
+      1. 商品一覧の表示（グリッドレイアウト）
+      2. ページネーション
+      3. フィルタリング（カテゴリ、価格帯）
+      4. ソート機能（価格、人気順、新着順）
+      5. レスポンシブデザイン
+      6. ローディング状態の実装
+
+  # インテグレーションテストタスク
+  - id: "task-004"
+    name: "E2Eテスト作成"
+    description: "主要機能のE2Eテスト作成"
+    type: "testing"
+    priority: 5
+    dependencies: ["task-001", "task-003"]
+    assigned_cc_type: "child"
+    
+    config:
+      test_framework: "playwright"
+      browsers: ["chromium", "firefox", "webkit"]
+      
+    input:
+      test_scenarios:
+        - "ユーザー登録からログインまでのフロー"
+        - "商品検索と詳細表示"
+        - "カート追加と決済フロー"
+        
+    output:
+      files:
+        - "e2e/auth.spec.ts"
+        - "e2e/products.spec.ts"
+        - "e2e/checkout.spec.ts"
+        
+    script: |
+      E2Eテストを作成してください：
+      1. テストシナリオの実装
+      2. データのセットアップとクリーンアップ
+      3. 複数ブラウザでの動作確認
+      4. スクリーンショットの取得
+      5. テストレポートの生成設定
+
+  # ドキュメント生成タスク
+  - id: "task-005"
+    name: "技術ドキュメント作成"
+    description: "プロジェクトの技術ドキュメント作成"
+    type: "documentation"
+    priority: 3
+    dependencies: ["task-001", "task-002", "task-003", "task-004"]
+    assigned_cc_type: "child"
+    
+    config:
+      format: "markdown"
+      include_diagrams: true
+      
+    output:
+      files:
+        - "README.md"
+        - "docs/ARCHITECTURE.md"
+        - "docs/API.md"
+        - "docs/DEPLOYMENT.md"
+        
+    script: |
+      技術ドキュメントを作成してください：
+      1. プロジェクト概要とセットアップ手順
+      2. アーキテクチャ説明
+      3. API仕様書
+      4. デプロイメント手順
+      5. トラブルシューティングガイド
+
+# タスクグループ（並列実行可能なタスクのグループ化）
+task_groups:
+  - id: "group-001"
+    name: "基盤開発"
+    tasks: ["task-001", "task-002"]
+    max_parallel: 2
+    
+  - id: "group-002"
+    name: "フロントエンド開発"
+    tasks: ["task-003"]
+    max_parallel: 1
+    
+  - id: "group-003"
+    name: "品質保証"
+    tasks: ["task-004", "task-005"]
+    max_parallel: 2
+
+# 実行順序の定義
+execution_order:
+  - phase: "基盤構築"
+    groups: ["group-001"]
+    
+  - phase: "機能実装"
+    groups: ["group-002"]
+    
+  - phase: "品質保証"
+    groups: ["group-003"]
+
+# 成功条件
+success_criteria:
+  - all_tasks_completed: true
+  - test_coverage: 80
+  - no_critical_errors: true
+  
+# 通知設定
+notifications:
+  on_task_complete:
+    enabled: true
+    method: "dashboard"
+    
+  on_task_failure:
+    enabled: true
+    method: "dashboard"
+    include_logs: true
+    
+  on_project_complete:
+    enabled: true
+    method: "dashboard"
+    summary_report: true

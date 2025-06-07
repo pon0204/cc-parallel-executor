@@ -3,4 +3,4 @@ const nextConfig = {
   reactStrictMode: false, // xterm doesn't work well with StrictMode
 }
 
-module.exports = nextConfig
+export default nextConfig
