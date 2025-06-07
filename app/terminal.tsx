@@ -173,6 +173,38 @@ export default function TerminalPage() {
         >
           Launch Claude Code
         </button>
+        
+        <button
+          onClick={() => {
+            if (socket && socket.connected && terminal) {
+              // Claude Codeを起動
+              socket.emit('data', 'claude\n');
+              
+              // 3秒待ってから自動でプロンプトを入力
+              setTimeout(() => {
+                const prompt = 'Create a simple hello world program in Python';
+                socket.emit('data', prompt + '\n');
+              }, 3000);
+              
+              terminal.focus();
+            }
+          }}
+          style={{
+            marginLeft: '10px',
+            padding: '8px 16px',
+            backgroundColor: '#10b981',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            fontSize: '14px',
+            cursor: 'pointer',
+            transition: 'background-color 0.2s'
+          }}
+          onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#059669'}
+          onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#10b981'}
+        >
+          Launch + Auto Prompt
+        </button>
       </div>
       
       <div 
