@@ -59,8 +59,8 @@ export function SimpleTerminal({ onConnected, onDisconnected }: SimpleTerminalPr
 
     setTerminal(term);
 
-    // Connect to socket.io (using server-simple.cjs on port 3001)
-    const socketConnection = io('http://localhost:3001');
+    // Connect to socket.io (Project Server)
+    const socketConnection = io(`http://localhost:${process.env.NEXT_PUBLIC_PROJECT_SERVER_PORT || 8081}`);
 
     socketConnection.on('connect', () => {
       console.log('Connected to socket server');

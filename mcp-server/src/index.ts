@@ -2,8 +2,8 @@
 
 import { StreamableMCPServer } from './streamable-server.js';
 
-const PORT = parseInt(process.env.MCP_PORT || '3002');
-const PROJECT_SERVER_URL = process.env.PROJECT_SERVER_URL || 'http://localhost:3001';
+const PORT = parseInt(process.env.MCP_SERVER_PORT || '8082');
+const PROJECT_SERVER_URL = process.env.PROJECT_SERVER_URL || 'http://localhost:8081';
 
 console.log('Starting Claude Code MCP Server...');
 console.log(`Port: ${PORT}`);

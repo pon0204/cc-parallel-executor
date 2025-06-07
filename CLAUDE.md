@@ -4,173 +4,416 @@
 
 ## プロジェクト概要
 
-**Claude Code Terminal** (claude-code-terminal)は、複数のClaude Codeインスタンスの並列実行を可能にするウェブベースのターミナルアプリケーションです。インタラクティブなターミナルアクセスとREST API経由のプログラマティックな制御の両方を提供します。
+**Claude Code Terminal** (claude-code-terminal)は、Model Context Protocol (MCP) + Streamable HTTP + Server-Sent Eventsによる革命的なClaude Code並列実行システムです。親子Claude Code階層管理とリアルタイム通信を実現する次世代プラットフォームです。
 
 ## 一般的なコマンド
 
 ```bash
-# 依存関係のインストール
-npm install
+# 全ての依存関係のインストール（メインプロジェクト + MCPサーバー）
+bun run install:all
 
-# 開発モード（Next.jsフロントエンド）
-npm run dev
+# 開発モード（3つのサーバーを同時起動）
+bun run dev
+# または個別に:
+bun run dev:next    # Next.js フロントエンド (:8080)
+bun run dev:server  # プロジェクトサーバー (:8081)  
+bun run dev:mcp     # MCPサーバー (:8082)
 
-# プロダクションビルド
-npm run build
+# プロダクションビルド（全コンポーネント）
+bun run build
 
-# プロダクションサーバー起動
-npm run start
+# プロダクション起動（全サーバー同時）
+bun run start
 
-# ターミナルサーバー実行
-npm run server
-# または
-node server-simple.js
+# データベース関連
+bun run db:generate  # Prismaクライアント生成
+bun run db:push      # スキーマをデータベースにプッシュ
+bun run db:seed      # サンプルデータ投入
 
-# APIサーバー実行（並列実行用）
-node server-api.js
+# 開発ツール
+bun run lint         # ESLint実行
+bun run format       # Prettier実行
+bun run test         # テスト実行
+bun run clean        # ビルドファイル削除
 ```
 
 ## プロジェクト構造
 
 ```
 claude-code-terminal/
-├── app/                    # Next.js App Routerページ
-│   ├── page.tsx           # ナビゲーション付きホームページ
+├── app/                    # Next.js App Routerページ（ポート8080）
+│   ├── page.tsx           # ダッシュボードへのリダイレクト
+│   ├── dashboard/         # プロジェクト管理ダッシュボード
 │   ├── terminal/          # インタラクティブウェブターミナル
 │   ├── control/           # APIコントロールインターフェース
 │   ├── parallel/          # 並列実行管理
-│   └── api/               # APIルートプロキシ
-├── components/            # 共有UIコンポーネント（shadcn/ui）
-├── server-simple.js       # WebSocketターミナルサーバー
-├── server-api.js         # CC制御用REST APIサーバー
-└── docs/                 # アーキテクチャドキュメント
+│   ├── test-terminal/     # ターミナルテストページ
+│   └── api/               # Next.js APIルートプロキシ
+├── components/            # 共有UIコンポーネント（shadcn/ui + Radix UI）
+│   ├── dashboard/         # ダッシュボード関連コンポーネント
+│   ├── terminal/          # ターミナル関連コンポーネント
+│   └── ui/                # shadcn/ui基盤コンポーネント
+├── server/                # プロジェクトサーバー（ポート8081）
+│   ├── index.ts           # Express + Socket.IO メインサーバー
+│   ├── api/               # REST APIルート
+│   ├── services/          # ビジネスロジック（Terminal, CC, Worktree）
+│   └── utils/             # ユーティリティ（Logger, Prisma, Validation）
+├── mcp-server/            # MCPサーバー（ポート8082）
+│   ├── src/
+│   │   ├── index.ts       # MCPサーバーエントリーポイント
+│   │   ├── streamable-server.ts  # Streamable HTTP + SSE実装
+│   │   ├── tools/child-cc.ts     # 子CC管理ツール
+│   │   └── types.ts       # MCP関連型定義
+│   └── package.json       # MCP専用依存関係
+├── prisma/                # データベース（SQLite）
+│   └── schema.prisma      # MCP対応完全スキーマ
+├── lib/                   # 共有ライブラリ
+│   ├── api/client.ts      # APIクライアント
+│   ├── hooks/             # カスタムReactフック
+│   ├── stores/            # Zustand状態管理
+│   └── providers.tsx      # React Query等プロバイダー
+├── docs/                  # 詳細アーキテクチャドキュメント
+└── scripts/               # ユーティリティスクリプト
 ```
 
 ## ハイレベルアーキテクチャ
 
-### コアコンポーネント
+### 革命的3サーバーアーキテクチャ
 
-1. **フロントエンド（Next.js 14）**
-   - ルーティング用App Router
-   - 型安全性のためのTypeScript
-   - スタイリング用Tailwind CSS + shadcn/ui
-   - ターミナルエミュレーション用xterm.js
-   - リアルタイム通信用Socket.IOクライアント
+1. **フロントエンド（Next.js 14 - ポート8080）**
+   - App Router + TypeScript + Tailwind CSS
+   - shadcn/ui + Radix UI コンポーネントライブラリ
+   - xterm.js ターミナルエミュレーション
+   - Socket.IO + React Query によるリアルタイム通信
+   - Zustand状態管理
+   - ダッシュボード、ターミナル、並列実行管理UI
 
-2. **バックエンドサーバー**
-   - **server-simple.js**: ターミナルI/Oを処理するWebSocketサーバー
-   - **server-api.js**: プログラマティックなCC制御用REST APIサーバー
-   - 適切なPTYエミュレーションのために`unbuffer`を使用
+2. **プロジェクトサーバー（Express + Socket.IO - ポート8081）**
+   - **TerminalService**: WebSocket経由のターミナルI/O
+   - **CCService**: Claude Code インスタンス管理
+   - **WorktreeService**: Git worktree による並列実行環境
+   - **Prisma ORM**: SQLite データベース管理
+   - **Winston Logger**: 構造化ログ出力
 
-3. **CC並列実行システム**
-   - 親CC（コントローラー）：タスク定義の読み込みと子CC管理
-   - 子CC（ワーカー）：割り当てられたタスクを並列実行
-   - 優先度ベースのキューイングを持つタスクスケジューラー
-   - リアルタイム進捗監視
+3. **MCPサーバー（Streamable HTTP + SSE - ポート8082）**
+   - **Model Context Protocol**: 並列実行制御の中央司令塔
+   - **Streamable HTTP**: 単一エンドポイントでの統合通信
+   - **Server-Sent Events**: 双方向リアルタイム通信
+   - **Child CC Manager**: 子CCインスタンス生成・管理
+   - **ultrathinkプロトコル**: 確実な親子CC間指示伝達
+
+### MCP並列実行フロー
+
+1. **親CC**: MCPサーバーに `create_child_cc` ツール呼び出し
+2. **MCPサーバー**: Git worktree作成 + 子CCプロセス起動
+3. **子CC**: ultrathinkキーワード検出でタスク実行モード移行
+4. **SSE通信**: リアルタイム進捗更新をフロントエンドに配信
 
 ### 主要ページ
 
-- **`/`** - プロジェクト概要のホームページ
+- **`/`** - ダッシュボードへの自動リダイレクト
+- **`/dashboard`** - プロジェクト管理メインダッシュボード
+- **`/dashboard/[projectId]`** - プロジェクト詳細・タスク管理
 - **`/terminal`** - 直接CC対話用インタラクティブターミナル
 - **`/control`** - カスタムプロンプト付きAPIベースCCコントロール
-- **`/parallel`** - 複数のCCインスタンスを同時管理
+- **`/parallel`** - 複数のCCインスタンス並列管理
+- **`/test-terminal`** - ターミナル機能テスト用ページ
 
 ## 主要なアーキテクチャ決定事項
 
-1. **マイクロサービスアーキテクチャ**：各コンポーネントが独立して動作
-   - ターミナルサーバーとAPIサーバーは異なるポートで実行
-   - フロントエンドはNext.js APIルート経由でAPIコールをプロキシ
+1. **革命的3サーバー分離アーキテクチャ**
+   - フロントエンド（8080）、プロジェクトサーバー（8081）、MCPサーバー（8082）
+   - 各サーバーが独立して動作し、専門領域に特化
+   - concurrentlyによる統合開発ワークフロー
 
-2. **リアルタイム通信**：双方向ターミナルI/O用Socket.IO
-   - ターミナルリサイズイベントの処理
-   - リアルタイムで出力をストリーミング
+2. **Model Context Protocol (MCP) 統合**
+   - JSON-RPC 2.0準拠のStreamable HTTP通信
+   - `create_child_cc`、`get_available_tasks`、`update_task_status` ツール
+   - Server-Sent Events によるリアルタイム通知
 
-3. **PTYエミュレーション**：適切なターミナル動作のために`unbuffer`（expectパッケージ）を使用
-   - インタラクティブコマンドが正しく動作することを保証
-   - ANSIカラーコードとフォーマットを維持
+3. **完全型安全なデータベース設計**
+   - Prisma ORM + SQLite による完全型安全性
+   - MCPセッション、CCインスタンス、ultrathinkメッセージの完全追跡
+   - Git worktree管理による並列実行環境の隔離
 
-4. **タスク管理**：YAMLベースのタスク定義
-   - 依存関係の解決
-   - 優先度ベースのスケジューリング
-   - 並列実行グループ
+4. **ultrathinkプロトコル実装**
+   - 親CCから子CCへの確実な指示伝達メカニズム
+   - キーワード検出による自動タスク実行モード移行
+   - 階層的CC管理とリアルタイム通信
 
-## ドキュメントからの重要なコンテキスト
+5. **Git Worktree による並列実行環境**
+   - タスクごとの完全隔離された実行環境
+   - 自動worktree作成・削除・プルーニング
+   - 複数ブランチでの同時作業サポート
 
-### CC並列実行コンセプト
-`docs/architecture.md`より：
-- 親CCがタスク定義を読み込んで分析
-- タスクスケジューラーが優先度付きキューを管理
-- CCオーケストレーターが子インスタンスにタスクを割り当て
-- ダッシュボードへのリアルタイム進捗レポート
+## 重要な技術仕様
 
-### Ultrathinkプロトコル
-- 親CCから子CCへの指示は必ず「ultrathink」キーワードで開始
-- 子CCはultrathinkを検出してタスク実行モードに移行
-- これにより親子CC間の確実な通信を保証
+### MCPツール詳細
 
-### タスク構造
-`docs/task-structure.yaml`より：
-- 依存関係と優先度で定義されたタスク
-- 異なるタスクタイプのサポート：開発、設計、テスト、ドキュメント
-- 並列実行用タスクグループ
-- 成功条件付き実行フェーズ
-
-### APIエンドポイント
-CC制御用主要API：
+**create_child_cc**
+```typescript
+interface ChildCCOptions {
+  parentInstanceId: string;    // 親CCインスタンスID
+  taskId: string;             // 実行タスクID
+  instruction: string;        // 詳細指示
+  projectWorkdir: string;     // プロジェクト作業ディレクトリ
+}
 ```
-POST /api/sessions       - 新しいCCセッション作成
-GET /api/sessions/:id    - セッションステータス/出力取得
-POST /api/batch          - タスクバッチ実行
+
+**get_available_tasks** - プロジェクトの利用可能タスク取得
+**update_task_status** - タスクステータス更新
+
+### 主要APIエンドポイント
+
+**プロジェクトサーバー（:8081）**
 ```
+GET  /api/projects           - プロジェクト一覧
+POST /api/projects           - プロジェクト作成
+GET  /api/projects/:id/tasks - プロジェクトタスク一覧
+POST /api/cc/child           - 子CC作成
+PATCH /api/tasks/:id/status  - タスクステータス更新
+```
+
+**MCPサーバー（:8082）**
+```
+POST /mcp                    - MCP JSON-RPC 2.0 エンドポイント
+GET  /mcp                    - Server-Sent Events ストリーム
+GET  /health                 - ヘルスチェック
+```
+
+### ultrathinkプロトコル詳細
+
+親CCから子CCへの指示伝達フォーマット：
+```
+ultrathink
+
+タスク実行指示:
+
+タスクID: ${taskId}
+親CCインスタンス: ${parentInstanceId}
+
+作業指示:
+${instruction}
+
+このworktreeで独立してタスクを実行し、完了後は結果を報告してください。
+```
+
+### データベーススキーマ要点
+
+- **Project**: MCPセッション、Git リポジトリ、並列CC数制限
+- **Task**: 階層的タスク、依存関係、ultrathinkプロトコル対応
+- **CCInstance**: 親子関係、MCPセッション連携、worktree管理
+- **MCPSession**: Streamable HTTP、SSE通知、タイムアウト管理
+- **UltrathinkMessage**: 親子CC間通信ログ、実行状況追跡
+- **GitWorktree**: 並列実行環境の完全追跡
 
 ## 開発ワークフロー
 
-1. **開発開始**
-   ```bash
-   # ターミナル1: APIサーバー起動
-   node server-api.js
-   
-   # ターミナル2: ターミナルサーバー起動  
-   npm run server
-   
-   # ターミナル3: Next.js開発サーバー起動
-   npm run dev
-   ```
+### 1. 環境設定
 
-2. **前提条件**
-   - Node.js 18+
-   - expect/unbufferインストール済み（macOSでは`brew install expect`）
-   - Claude APIキーが設定済み
+```bash
+# 1. 依存関係インストール
+bun run install:all
 
-3. **ポート使用**
-   - 3000: Next.jsフロントエンド
-   - 3001: ターミナルWebSocketとAPIサーバーの両方
+# 2. 環境変数設定
+cp .env.example .env
+# .envを編集して適切な設定を行う
 
-## 一般的な問題と解決策
+# 3. データベース初期化
+bun run db:generate
+bun run db:push
+bun run db:seed  # オプション：サンプルデータ投入
+```
 
-1. **unbufferが見つからない**：expectパッケージをインストール
-2. **API接続失敗**：server-api.jsがポート3001で実行されていることを確認
-3. **ターミナルが表示されない**：server-simple.jsが実行されていることを確認
+### 2. 開発サーバー起動
+
+**統合起動（推奨）**
+```bash
+bun run dev  # 3つのサーバーを同時起動
+```
+
+**個別起動（デバッグ用）**
+```bash
+# ターミナル1: Next.jsフロントエンド
+bun run dev:next
+
+# ターミナル2: プロジェクトサーバー
+bun run dev:server
+
+# ターミナル3: MCPサーバー
+bun run dev:mcp
+```
+
+### 3. 前提条件
+
+- **Bun**: JavaScript/TypeScriptランタイム（推奨）
+- **Node.js 18+**: Bunの代替として使用可能
+- **Git**: worktree機能が必要
+- **Claude CLI**: 子CCインスタンス起動用
+- **SQLite**: データベース（組み込み）
+
+### 4. ポート構成（高番号ポート採用）
+
+- **8080**: Next.js フロントエンド
+- **8081**: プロジェクトサーバー（Express + Socket.IO）
+- **8082**: MCPサーバー（Streamable HTTP + SSE）
+
+## トラブルシューティング
+
+### 1. 起動関連問題
+
+**ポート競合エラー**
+```bash
+# ポート使用状況確認
+lsof -i :8080  # Next.js
+lsof -i :8081  # プロジェクトサーバー  
+lsof -i :8082  # MCPサーバー
+
+# 強制終了
+kill -9 <PID>
+```
+
+**Bunが見つからない**
+```bash
+# Bunインストール
+curl -fsSL https://bun.sh/install | bash
+
+# またはnpmを使用
+npm install -g bun
+```
+
+### 2. データベース関連問題
+
+**Prismaクライアント不整合**
+```bash
+bun run db:generate  # クライアント再生成
+rm -rf node_modules/.cache  # キャッシュクリア
+```
+
+**データベースリセット**
+```bash
+rm prisma/dev.db*  # データベース削除
+bun run db:push    # スキーマ再適用
+```
+
+### 3. MCP接続問題
+
+**MCPサーバー接続失敗**
+```bash
+# MCPサーバーヘルスチェック
+curl http://localhost:8082/health
+
+# ログ確認
+tail -f logs/mcp-server.log
+```
+
+**SSEストリーム切断**
+- ブラウザのネットワークタブでSSE接続を確認
+- プロキシ設定によるSSE妨害を確認
 
 ## ベストプラクティス
 
-1. **状態管理**：コンポーネント状態にReactフックを使用
-2. **エラーハンドリング**：すべてのAPIコールは適切にエラーを処理すべき
-3. **型安全性**：すべての新しいコードでTypeScriptを活用
-4. **UIコンポーネント**：`/components/ui`から既存のshadcn/uiコンポーネントを使用
-5. **スタイリング**：Tailwind CSSクラスを使用、インラインスタイルは避ける
+### 1. 開発規約
 
-## 将来の拡張（要件より）
+**型安全性の徹底**
+- すべての新しいコードでTypeScriptを活用
+- `@typescript-eslint/no-explicit-any` ルールを厳守
+- Prismaによる完全型安全なデータベースアクセス
 
-- データベース統合（SQLite予定）
-- タスク依存関係の視覚化強化
-- パフォーマンスメトリクスダッシュボード
-- Dockerコンテナ化
-- タスク定義のエクスポート/インポート機能
+**コンポーネント設計**
+- `/components/ui`から既存のshadcn/uiコンポーネントを使用
+- Radix UI プリミティブによる一貫したUI体験
+- Tailwind CSSクラスを使用、インラインスタイルは避ける
 
-## Claudeインスタンス向けメモ
+**状態管理**
+- React Query による効率的なサーバー状態管理
+- Zustand による軽量なクライアント状態管理
+- Socket.IO リアルタイム更新との適切な統合
 
-- これはローカル開発ツールで、認証は実装されていません
-- 開発を加速するための並列タスク実行用に設計されています
-- ターミナルとAPI機能間のクリーンな分離を維持することに焦点を当てる
-- コードベースはNext.js 14 App Routerパターンに従います
+### 2. アーキテクチャ規約
+
+**マイクロサービス間通信**
+- プロジェクトサーバー ↔ MCPサーバー: REST API
+- フロントエンド ↔ プロジェクトサーバー: Socket.IO + HTTP
+- フロントエンド ↔ MCPサーバー: SSE + HTTP
+
+**エラーハンドリング**
+- Winston ログによる構造化エラー記録
+- 適切なHTTPステータスコードの使用
+- ユーザー向けエラーメッセージの標準化
+
+**セキュリティ**
+- CORS設定の適切な管理
+- 環境変数による機密情報管理
+- Git worktree による実行環境隔離
+
+## 主要技術スタック詳細
+
+### フロントエンド
+- **Next.js 14**: App Router, TypeScript, React 18
+- **shadcn/ui**: Radix UI + Tailwind CSS コンポーネント
+- **xterm.js**: ターミナルエミュレーション + アドオン
+- **Socket.IO Client**: リアルタイム通信
+- **React Query**: サーバー状態管理 + キャッシュ
+- **Zustand**: 軽量クライアント状態管理
+- **React Hook Form**: フォーム管理 + バリデーション
+
+### バックエンド
+- **Express.js**: HTTP サーバーフレームワーク
+- **Socket.IO**: WebSocket 通信
+- **Prisma ORM**: 型安全データベースアクセス
+- **Winston**: 構造化ログ出力
+- **execa**: 子プロセス実行ラッパー
+- **CORS**: クロスオリジン制御
+
+### MCP関連
+- **@modelcontextprotocol/sdk**: 公式MCPサーバーSDK
+- **JSON-RPC 2.0**: プロトコル準拠通信
+- **Server-Sent Events**: リアルタイムストリーミング
+- **Express**: Streamable HTTP実装
+
+### 開発ツール
+- **Bun**: 高速JavaScript/TypeScriptランタイム
+- **ESLint**: TypeScript対応リンター
+- **Prettier**: コードフォーマッター
+- **Husky**: Gitフック管理
+- **lint-staged**: ステージファイル自動整形
+- **Concurrently**: 複数プロセス並列実行
+
+## 重要な設定ファイル
+
+### TypeScript設定
+- **tsconfig.json**: フロントエンド用設定
+- **tsconfig.server.json**: サーバー用設定（別ディレクトリ構成）
+
+### 品質管理
+- **.eslintrc.json**: 厳格な型安全ルール設定
+- **.prettierrc**: 一貫したフォーマット設定
+- **lint-staged**: 自動品質チェック
+
+### Next.js設定
+- **next.config.js**: React Strict Mode無効（xterm互換性）
+- **reactStrictMode: false** でxterm.jsとの競合回避
+
+## プロダクションデプロイ考慮事項
+
+### 環境変数
+- `NODE_ENV=production`
+- 各サーバーポートの適切な設定
+- Claude CLIパスの環境適応
+- ログレベル調整
+
+### パフォーマンス最適化
+- Next.js 静的生成の活用
+- Socket.IO 接続プーリング
+- Git worktree 自動クリーンアップ
+- データベース接続プール管理
+
+## Claude Code Instance向け重要メモ
+
+- **3サーバーアーキテクチャ**: 必ず全サーバーが起動していることを確認
+- **MCPプロトコル**: 子CC作成は必ずMCPサーバー経由で実行
+- **ultrathinkキーワード**: 子CCとの通信には必須
+- **Git worktree**: 並列実行環境の適切な理解が重要
+- **型安全性**: Prismaスキーマとの整合性を常に保つ
+- **ログ確認**: Winstonログで詳細な実行状況を追跡可能

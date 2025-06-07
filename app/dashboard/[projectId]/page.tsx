@@ -182,7 +182,7 @@ export default function ProjectDashboardPage() {
         socket.disconnect();
       }
       
-      const newSocket = io('http://localhost:3001');
+      const newSocket = io('http://localhost:8081');
       setSocket(newSocket);
       
       // イベントハンドラーを設定
@@ -290,7 +290,7 @@ export default function ProjectDashboardPage() {
         // Use existing socket or create new one
         let currentSocket = socket;
         if (!currentSocket || !currentSocket.connected) {
-          currentSocket = io('http://localhost:3001');
+          currentSocket = io('http://localhost:8081');
           setSocket(currentSocket);
           setupSocketEvents(currentSocket);
           
@@ -332,7 +332,7 @@ worktreeで独立した環境で作業を行い、完了後は結果を報告し
         // Use existing socket or create new one
         let currentSocket = socket;
         if (!currentSocket || !currentSocket.connected) {
-          currentSocket = io('http://localhost:3001');
+          currentSocket = io('http://localhost:8081');
           setSocket(currentSocket);
           setupSocketEvents(currentSocket);
           

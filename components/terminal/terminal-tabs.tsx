@@ -83,7 +83,7 @@ export function TerminalTabs({ projectId, parentSocket }: TerminalTabsProps) {
             <CCTerminal
               instanceId={parentCC.id}
               type="parent"
-              socketUrl={process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001'}
+              socketUrl={process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:8081'}
               existingSocket={parentSocket}
             />
           </TabsContent>
@@ -93,7 +93,7 @@ export function TerminalTabs({ projectId, parentSocket }: TerminalTabsProps) {
               <CCTerminal
                 instanceId={child.id}
                 type="child"
-                socketUrl={process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001'}
+                socketUrl={process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:8081'}
               />
             </TabsContent>
           ))}
@@ -128,7 +128,7 @@ export function TerminalTabs({ projectId, parentSocket }: TerminalTabsProps) {
             <CCTerminal
               instanceId={parentCC.id}
               type="parent"
-              socketUrl={process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001'}
+              socketUrl={process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:8081'}
               existingSocket={parentSocket}
             />
           </div>
@@ -147,7 +147,7 @@ export function TerminalTabs({ projectId, parentSocket }: TerminalTabsProps) {
               <CCTerminal
                 instanceId={child.id}
                 type="child"
-                socketUrl={process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001'}
+                socketUrl={process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:8081'}
               />
             </div>
           </div>

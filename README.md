@@ -48,18 +48,18 @@ Zustand                // 状態管理
 
 ### **バックエンド**
 ```typescript
-// MCP Server (Port 3002)
+// MCP Server (Port 8082)
 Express.js             // RESTful API
 Streamable HTTP        // MCP通信プロトコル
 Server-Sent Events     // リアルタイムストリーミング
 
-// Project Server (Port 3001)  
+// Project Server (Port 8081)  
 Express.js + Socket.IO // WebSocket + HTTP API
 Prisma ORM             // データベースORM
 SQLite                 // 軽量データベース
 unbuffer               // PTYエミュレーション
 
-// Frontend (Port 3000)
+// Frontend (Port 8080)
 Next.js Server         // フロントエンドサーバー
 ```
 
@@ -112,21 +112,21 @@ node scripts/add-sample-tasks.js
 **🎯 3つのサーバーを同時起動:**
 
 ```bash
-# ターミナル 1: MCP Server (ポート 3002)
+# ターミナル 1: MCP Server (ポート 8082)
 cd mcp-server
 npm install && npm run build && npm start
 
-# ターミナル 2: Project Server (ポート 3001) 
+# ターミナル 2: Project Server (ポート 8081) 
 npm run server
 
-# ターミナル 3: Frontend (ポート 3000)
+# ターミナル 3: Frontend (ポート 8080)
 npm run dev
 ```
 
 **🌐 アクセス:**
-- **メインアプリケーション**: http://localhost:3000
-- **プロジェクトダッシュボード**: http://localhost:3000/dashboard
-- **ターミナル画面**: http://localhost:3000/terminal
+- **メインアプリケーション**: http://localhost:8080
+- **プロジェクトダッシュボード**: http://localhost:8080/dashboard
+- **ターミナル画面**: http://localhost:8080/terminal
 
 ## 🏢 システムアーキテクチャ
 
@@ -134,9 +134,9 @@ npm run dev
 
 ```mermaid
 graph TD
-    A[ユーザー] --> B[Frontend :3000]
+    A[ユーザー] --> B[Frontend :8080]
     B --> C[Next.js API Routes]
-    C --> D[Project Server :3001]
+    C --> D[Project Server :8081]
     D --> E[MCP Server :3002]
     E --> F[Child CC Instances]
     
@@ -164,9 +164,9 @@ graph TD
 
 | コンポーネント | ポート | 役割 | 技術 |
 |---------------|--------|------|------|
-| **Frontend** | 3000 | UI/UX、ダッシュボード | Next.js, React |
-| **Project Server** | 3001 | API、WebSocket、データ管理 | Express, Socket.IO, Prisma |
-| **MCP Server** | 3002 | 並列実行制御、Streamable HTTP | Express, SSE |
+| **Frontend** | 8080 | UI/UX、ダッシュボード | Next.js, React |
+| **Project Server** | 8081 | API、WebSocket、データ管理 | Express, Socket.IO, Prisma |
+| **MCP Server** | 8082 | 並列実行制御、Streamable HTTP | Express, SSE |
 | **Child CCs** | - | タスク実行、Git Worktree | Claude Code CLI |
 
 ## 🎮 使用方法

@@ -13,7 +13,7 @@ const app = express();
 const server = createServer(app);
 const io = new SocketIOServer(server, {
   cors: {
-    origin: 'http://localhost:3000',
+    origin: `http://localhost:${process.env.NEXT_PORT || 8080}`,
     methods: ['GET', 'POST'],
   },
 });
@@ -114,7 +114,7 @@ process.on('SIGTERM', async () => {
 });
 
 // Start server
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PROJECT_SERVER_PORT || 8081;
 server.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
 });
