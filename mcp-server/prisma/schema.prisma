@@ -1,0 +1,103 @@
+// Claude Code Terminal - 基本Prisma Schema (SQLite対応)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// プロジェクト管理
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  workdir     String
+  status      String   @default("active")
+  configJson  String?  @map("config_json")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt      @map("updated_at")
+  
+  tasks       Task[]
+  requirements Requirement[]
+  features    Feature[]
+
+  @@map("projects")
+}
+
+// タスク管理
+model Task {
+  id            String    @id @default(cuid())
+  projectId     String    @map("project_id")
+  parentTaskId  String?   @map("parent_task_id")
+  name          String
+  description   String?
+  status        String    @default("PENDING")
+  priority      Int       @default(5)
+  taskType      String    @map("task_type")
+  assignedTo    String?   @map("assigned_to")
+  instruction   String?
+  inputData     String?   @map("input_data")
+  outputData    String?   @map("output_data")
+  worktreePath  String?   @map("worktree_path")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt      @map("updated_at")
+  startedAt     DateTime? @map("started_at")
+  completedAt   DateTime? @map("completed_at")
+  
+  project       Project   @relation(fields: [projectId], references: [id])
+  parentTask    Task?     @relation("TaskHierarchy", fields: [parentTaskId], references: [id])
+  childTasks    Task[]    @relation("TaskHierarchy")
+  logs          TaskLog[]
+
+  @@map("tasks")
+}
+
+// タスクログ
+model TaskLog {
+  id           String   @id @default(cuid())
+  taskId       String   @map("task_id")
+  logLevel     String   @map("log_level")
+  message      String
+  createdAt    DateTime @default(now()) @map("created_at")
+  
+  task         Task     @relation(fields: [taskId], references: [id])
+
+  @@map("task_logs")
+}
+
+// 要件定義
+model Requirement {
+  id          String   @id @default(cuid())
+  projectId   String   @map("project_id")
+  type        String
+  title       String
+  content     String
+  priority    Int
+  status      String
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt      @map("updated_at")
+  
+  project     Project  @relation(fields: [projectId], references: [id])
+
+  @@map("requirements")
+}
+
+// 機能管理
+model Feature {
+  id              String   @id @default(cuid())
+  projectId       String   @map("project_id")
+  name            String
+  description     String?
+  featureType     String   @map("feature_type")
+  priority        Int
+  status          String
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt      @map("updated_at")
+  
+  project         Project  @relation(fields: [projectId], references: [id])
+
+  @@map("features")
+}

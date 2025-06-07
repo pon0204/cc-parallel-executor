@@ -1,5 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// Claude Code Terminal - 革命的MCPアーキテクチャ対応 Prisma Schema
+// Model Context Protocol + ultrathink プロトコル完全対応
 
 generator client {
   provider = "prisma-client-js"
@@ -10,153 +10,320 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// プロジェクト
+// プロジェクト管理（MCP対応）
 model Project {
   id          String   @id @default(cuid())
   name        String
   description String?
-  workdir     String   // CC起動ディレクトリ
-  status      String   @default("active") // active, inactive, completed
-  configJson  String?  // JSON形式の設定
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  tasks        Task[]
+  workdir     String
+  status      String   @default("active")
+  mcpEnabled  Boolean  @default(true)   @map("mcp_enabled")
+  maxParallelCc Int    @default(5)      @map("max_parallel_cc")
+  ultrathinkProtocol Boolean @default(true) @map("ultrathink_protocol")
+  configJson  String?  @map("config_json")
+  gitRepository String? @map("git_repository")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt      @map("updated_at")
+  archivedAt  DateTime? @map("archived_at")
+  
+  tasks       Task[]
   requirements Requirement[]
-  features     Feature[]
+  features    Feature[]
+  mcpSessions MCPSession[]
+  gitWorktrees GitWorktree[]
 
-  @@index([status])
-  @@index([createdAt])
+  @@map("projects")
 }
 
-// タスク
+// タスク管理（MCP並列実行対応）
 model Task {
-  id             String    @id @default(cuid())
-  projectId      String
-  parentTaskId   String?
-  name           String
-  description    String?
-  status         String    @default("pending") // pending, queued, running, completed, failed
-  priority       Int       @default(5) // 1-10
-  assignedTo     String?   // CCインスタンスID
-  taskType       String    // development, test, documentation
-  inputData      String?   // JSON
-  outputData     String?   // JSON
-  instruction    String?   // ultrathinkプロトコルの指示内容
-  worktreePath   String?   // Git worktreeパス
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  startedAt      DateTime?
-  completedAt    DateTime?
+  id            String    @id @default(cuid())
+  projectId     String    @map("project_id")
+  parentTaskId  String?   @map("parent_task_id")
+  name          String
+  description   String?
+  status        String @default("PENDING")
+  priority      Int       @default(5)
+  taskType      String    @map("task_type")
+  assignedTo    String?   @map("assigned_to")
+  mcpEnabled    Boolean   @default(true) @map("mcp_enabled")
+  ultrathinkProtocol Boolean @default(true) @map("ultrathink_protocol")
+  instruction   String?
+  inputData     String?   @map("input_data")
+  outputData    String?   @map("output_data")
+  worktreePath  String?   @map("worktree_path")
+  estimatedDurationMinutes Int? @map("estimated_duration_minutes")
+  actualDurationMinutes    Int? @map("actual_duration_minutes")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt      @map("updated_at")
+  queuedAt      DateTime? @map("queued_at")
+  startedAt     DateTime? @map("started_at")
+  completedAt   DateTime? @map("completed_at")
+  
+  project       Project   @relation(fields: [projectId], references: [id])
+  parentTask    Task?     @relation("TaskHierarchy", fields: [parentTaskId], references: [id])
+  childTasks    Task[]    @relation("TaskHierarchy")
+  assignedCCInstance CCInstance? @relation(fields: [assignedTo], references: [id])
+  dependencies  TaskDependency[]
+  dependents    TaskDependency[] @relation("DependencyTask")
+  logs          TaskLog[]
+  ultrathinkMessages UltrathinkMessage[]
+  gitWorktrees  GitWorktree[]
 
-  // Relations
-  project      Project       @relation(fields: [projectId], references: [id])
-  parentTask   Task?         @relation("TaskHierarchy", fields: [parentTaskId], references: [id])
-  childTasks   Task[]        @relation("TaskHierarchy")
-  logs         TaskLog[]
-  dependencies TaskDependency[] @relation("DependentTask")
-  dependents   TaskDependency[] @relation("DependsOnTask")
-
-  @@index([projectId])
-  @@index([parentTaskId])
-  @@index([status])
-  @@index([assignedTo])
-  @@index([priority])
+  @@map("tasks")
 }
 
 // タスク依存関係
 model TaskDependency {
-  id              String   @id @default(cuid())
-  dependentTaskId String   // 依存する側のタスク
-  dependsOnTaskId String   // 依存される側のタスク
-  createdAt       DateTime @default(now())
+  id               String @id @default(cuid())
+  taskId           String @map("task_id")
+  dependencyTaskId String @map("dependency_task_id")
+  dependencyType   String @map("dependency_type")
+  createdAt        DateTime @default(now()) @map("created_at")
+  
+  task             Task   @relation(fields: [taskId], references: [id])
+  dependencyTask   Task   @relation("DependencyTask", fields: [dependencyTaskId], references: [id])
 
-  dependentTask Task @relation("DependentTask", fields: [dependentTaskId], references: [id])
-  dependsOnTask Task @relation("DependsOnTask", fields: [dependsOnTaskId], references: [id])
-
-  @@unique([dependentTaskId, dependsOnTaskId])
-  @@index([dependentTaskId])
-  @@index([dependsOnTaskId])
+  @@map("task_dependencies")
 }
 
-// CCインスタンス
+// CCインスタンス管理（親子階層）
 model CCInstance {
-  id               String    @id @default(cuid())
-  name             String
-  type             String    // parent, child
-  status           String    @default("idle") // idle, running, stopped, error
-  worktreePath     String?   // 子CCの場合のworktreePath
-  parentInstanceId String?   // 親CCインスタンスID
-  processId        String?   // システムプロセスID
-  socketId         String?   // Socket.IO接続ID
-  createdAt        DateTime  @default(now())
-  lastHeartbeat    DateTime?
+  id                String    @id @default(cuid())
+  projectId         String?   @map("project_id")
+  mcpSessionId      String?   @map("mcp_session_id")
+  name              String
+  type              CCType
+  status            CCStatus  @default(IDLE)
+  parentInstanceId  String?   @map("parent_instance_id")
+  worktreePath      String?   @map("worktree_path")
+  processId         String?   @map("process_id")
+  socketId          String?   @map("socket_id")
+  claudeApiKeyHash  String?   @map("claude_api_key_hash")
+  startupCommand    String?   @map("startup_command")
+  environmentVars   String?   @map("environment_vars")
+  resourceLimits    String?   @map("resource_limits")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  startedAt         DateTime? @map("started_at")
+  lastHeartbeat     DateTime? @map("last_heartbeat")
+  terminatedAt      DateTime? @map("terminated_at")
+  exitCode          Int?      @map("exit_code")
+  
+  parentInstance    CCInstance? @relation("CCHierarchy", fields: [parentInstanceId], references: [id])
+  childInstances    CCInstance[] @relation("CCHierarchy")
+  mcpSession        MCPSession? @relation(fields: [mcpSessionId], references: [id])
+  assignedTasks     Task[]
+  logs              CCLog[]
+  sentUltrathinkMessages     UltrathinkMessage[] @relation("ParentInstance")
+  receivedUltrathinkMessages UltrathinkMessage[] @relation("ChildInstance")
+  gitWorktrees      GitWorktree[]
 
-  // Relations
-  parentInstance CCInstance? @relation("CCHierarchy", fields: [parentInstanceId], references: [id])
-  childInstances CCInstance[] @relation("CCHierarchy")
-  logs           TaskLog[]
+  @@map("cc_instances")
+}
 
-  @@index([type])
-  @@index([status])
-  @@index([parentInstanceId])
+// MCPセッション管理（Streamable HTTP + SSE）
+model MCPSession {
+  id                   String    @id @default(cuid())
+  projectId            String?   @map("project_id")
+  parentCcInstanceId   String?   @map("parent_cc_instance_id")
+  sessionType          String    @map("session_type")
+  status               String    @default("active")
+  connectionInfo       String?   @map("connection_info")
+  capabilities         String?
+  userAgent            String?   @map("user_agent")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  lastActivity         DateTime? @map("last_activity")
+  terminatedAt         DateTime? @map("terminated_at")
+  timeoutSeconds       Int       @default(3600) @map("timeout_seconds")
+  sseEnabled           Boolean   @default(true) @map("sse_enabled")
+  metadata             String?
+  
+  project              Project?  @relation(fields: [projectId], references: [id])
+  ccInstances          CCInstance[]
+  messages             MCPMessage[]
+  sseNotifications     SSENotification[]
+
+  @@map("mcp_sessions")
+}
+
+// MCPメッセージログ（JSON-RPC 2.0準拠）
+model MCPMessage {
+  id                   String    @id @default(cuid())
+  sessionId            String    @map("session_id")
+  messageType          String    @map("message_type")
+  jsonrpcVersion       String    @default("2.0") @map("jsonrpc_version")
+  method               String?
+  requestId            String?   @map("request_id")
+  direction            String
+  payload              String
+  params               String?
+  result               String?
+  error                String?
+  processingTimeMs     Int?      @map("processing_time_ms")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  responseReceivedAt   DateTime? @map("response_received_at")
+  
+  session              MCPSession @relation(fields: [sessionId], references: [id])
+  toolCalls            MCPToolCall[]
+
+  @@map("mcp_messages")
+}
+
+// MCPツール呼び出し（create_child_cc等）
+model MCPToolCall {
+  id              String    @id @default(cuid())
+  messageId       String    @map("message_id")
+  sessionId       String    @map("session_id")
+  toolName        String    @map("tool_name")
+  arguments       String
+  status          String    @default("pending")
+  startedAt       DateTime  @default(now()) @map("started_at")
+  completedAt     DateTime? @map("completed_at")
+  executionTimeMs Int?      @map("execution_time_ms")
+  result          String?
+  errorDetails    String?   @map("error_details")
+  retryCount      Int       @default(0) @map("retry_count")
+  
+  message         MCPMessage @relation(fields: [messageId], references: [id])
+
+  @@map("mcp_tool_calls")
+}
+
+// Server-Sent Events通知
+model SSENotification {
+  id             String    @id @default(cuid())
+  sessionId      String    @map("session_id")
+  eventType      String    @map("event_type")
+  eventName      String    @map("event_name")
+  payload        String
+  sentAt         DateTime  @default(now()) @map("sent_at")
+  deliveryStatus String    @default("sent") @map("delivery_status")
+  retryCount     Int       @default(0) @map("retry_count")
+  clientAck      Boolean   @default(false) @map("client_ack")
+  
+  session        MCPSession @relation(fields: [sessionId], references: [id])
+
+  @@map("sse_notifications")
+}
+
+// ultrathinkプロトコル（親子CC通信）
+model UltrathinkMessage {
+  id                  String    @id @default(cuid())
+  parentInstanceId    String    @map("parent_instance_id")
+  childInstanceId     String    @map("child_instance_id")
+  taskId              String    @map("task_id")
+  protocolVersion     String    @default("1.0") @map("protocol_version")
+  instructionType     String    @map("instruction_type")
+  instructionContent  String    @map("instruction_content")
+  keywordDetected     Boolean   @default(false) @map("keyword_detected")
+  sentAt              DateTime  @default(now()) @map("sent_at")
+  acknowledgedAt      DateTime? @map("acknowledged_at")
+  responseContent     String?   @map("response_content")
+  executionStartedAt  DateTime? @map("execution_started_at")
+  status              String    @default("sent")
+  
+  parentInstance      CCInstance @relation("ParentInstance", fields: [parentInstanceId], references: [id])
+  childInstance       CCInstance @relation("ChildInstance", fields: [childInstanceId], references: [id])
+  task                Task       @relation(fields: [taskId], references: [id])
+
+  @@map("ultrathink_messages")
+}
+
+// Git Worktree管理（並列実行環境）
+model GitWorktree {
+  id                  String    @id @default(cuid())
+  projectId           String    @map("project_id")
+  ccInstanceId        String    @map("cc_instance_id")
+  taskId              String    @map("task_id")
+  worktreeName        String    @map("worktree_name")
+  worktreePath        String    @map("worktree_path")
+  baseBranch          String    @map("base_branch")
+  currentBranch       String?   @map("current_branch")
+  gitStatus           String?   @map("git_status")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  lastCommitHash      String?   @map("last_commit_hash")
+  lastCommitAt        DateTime? @map("last_commit_at")
+  cleanupScheduledAt  DateTime? @map("cleanup_scheduled_at")
+  cleanupCompletedAt  DateTime? @map("cleanup_completed_at")
+  
+  project             Project    @relation(fields: [projectId], references: [id])
+  ccInstance          CCInstance @relation(fields: [ccInstanceId], references: [id])
+  task                Task       @relation(fields: [taskId], references: [id])
+
+  @@map("git_worktrees")
+}
+
+// CCログ（詳細ログ管理）
+model CCLog {
+  id           String   @id @default(cuid())
+  ccInstanceId String   @map("cc_instance_id")
+  taskId       String?  @map("task_id")
+  logLevel     String   @map("log_level")
+  category     String
+  message      String
+  details      String?
+  traceId      String?  @map("trace_id")
+  spanId       String?  @map("span_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  
+  ccInstance   CCInstance @relation(fields: [ccInstanceId], references: [id])
+
+  @@map("cc_logs")
 }
 
 // タスクログ
 model TaskLog {
-  id            String   @id @default(cuid())
-  taskId        String
-  ccInstanceId  String
-  logLevel      String   // debug, info, warn, error
-  message       String
-  metadata      String?  // JSON形式の追加情報
-  createdAt     DateTime @default(now())
+  id                   String   @id @default(cuid())
+  taskId               String   @map("task_id")
+  ccInstanceId         String   @map("cc_instance_id")
+  logLevel             String   @map("log_level")
+  phase                String
+  message              String
+  performanceMetrics   String?  @map("performance_metrics")
+  createdAt            DateTime @default(now()) @map("created_at")
+  
+  task                 Task     @relation(fields: [taskId], references: [id])
 
-  // Relations
-  task       Task       @relation(fields: [taskId], references: [id])
-  ccInstance CCInstance @relation(fields: [ccInstanceId], references: [id])
-
-  @@index([taskId])
-  @@index([ccInstanceId])
-  @@index([createdAt])
-  @@index([logLevel])
+  @@map("task_logs")
 }
 
 // 要件定義
 model Requirement {
-  id        String   @id @default(cuid())
-  projectId String
-  type      String   // functional, non-functional
-  title     String
-  content   String   // Markdown形式
-  priority  String   @default("medium") // high, medium, low
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  project Project @relation(fields: [projectId], references: [id])
-
-  @@index([projectId])
-  @@index([type])
-  @@index([priority])
-}
-
-// 機能要件
-model Feature {
   id          String   @id @default(cuid())
-  projectId   String
-  name        String
-  description String?
-  priority    Int      @default(5) // 1-10
-  status      String   @default("planned") // planned, in-progress, completed
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  projectId   String   @map("project_id")
+  type        String
+  title       String
+  content     String
+  priority    Int
+  status      String
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt      @map("updated_at")
+  
+  project     Project  @relation(fields: [projectId], references: [id])
 
-  // Relations
-  project Project @relation(fields: [projectId], references: [id])
-
-  @@index([projectId])
-  @@index([status])
-  @@index([priority])
+  @@map("requirements")
 }
+
+// 機能管理
+model Feature {
+  id              String   @id @default(cuid())
+  projectId       String   @map("project_id")
+  name            String
+  description     String?
+  featureType     String   @map("feature_type")
+  priority        Int
+  status          String
+  mcpIntegration  Boolean  @default(false) @map("mcp_integration")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt      @map("updated_at")
+  
+  project         Project  @relation(fields: [projectId], references: [id])
+
+  @@map("features")
+}
+
+// Note: SQLite doesn't support enums, using String with constraints
+// Valid values:
+// - TaskStatus: "PENDING", "QUEUED", "RUNNING", "COMPLETED", "FAILED"
+// - CCType: "PARENT", "CHILD"
+// - CCStatus: "IDLE", "RUNNING", "STOPPED", "ERROR"
