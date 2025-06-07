@@ -1,255 +1,468 @@
-# CC並列実行システム タスク定義構造サンプル
-# このファイルは、CC並列実行システムで使用するタスク定義の構造を示すサンプルです
+# Claude Code Terminal - 革命的MCPタスク定義構造
+# Model Context Protocol (MCP) + ultrathink プロトコル対応タスク定義
 
 # プロジェクトメタデータ
 project:
-  id: "proj-001"
-  name: "ECサイトリニューアルプロジェクト"
-  version: "1.0.0"
-  created_at: "2024-01-15T10:00:00Z"
+  id: "mcp-ecommerce-2025"
+  name: "次世代ECサイト - MCP並列開発プロジェクト"
+  version: "2.0.0"
+  created_at: "2025-01-15T10:00:00Z"
+  mcp_enabled: true
+  ultrathink_protocol: true
 
-# グローバル設定
+# MCPグローバル設定
+mcp_settings:
+  server_endpoint: "http://localhost:3002/mcp"
+  max_parallel_cc: 10              # 最大並列CC数
+  session_timeout: 3600            # セッションタイムアウト（秒）
+  sse_enabled: true                # Server-Sent Events有効化
+  streamable_http: true            # Streamable HTTP使用
+
+# システム設定
 settings:
-  max_parallel_cc: 5              # 最大並列CC数
-  default_timeout: 300            # デフォルトタイムアウト（秒）
-  retry_count: 3                  # リトライ回数
-  log_level: "info"               # ログレベル
+  max_parallel_cc: 10              # 最大並列CC数
+  default_timeout: 1800            # デフォルトタイムアウト（秒）
+  retry_count: 3                   # リトライ回数
+  log_level: "info"                # ログレベル
+  worktree_cleanup: "auto"         # Worktreeクリーンアップ
+  ultrathink_validation: true     # ultrathinkプロトコル検証
 
-# タスク定義
+# 革命的タスク定義（MCP + ultrathink対応）
 tasks:
-  # APIバックエンド実装タスク
-  - id: "task-001"
-    name: "ユーザー認証API実装"
-    description: "JWT認証を使用したユーザー認証APIの実装"
+  # バックエンドAPI開発（高優先度）
+  - id: "mcp-auth-api"
+    name: "認証API - MCP並列実装"
+    description: "JWT + OAuth2.0認証APIのMCP並列実装"
     type: "development"
-    priority: 10                  # 優先度（1-10、10が最高）
-    dependencies: []              # 依存タスクなし
-    assigned_cc_type: "child"     # 実行するCCタイプ
+    priority: 10                    # 最高優先度
+    dependencies: []                # 依存関係なし
+    mcp_enabled: true              # MCP対応
+    ultrathink_protocol: true      # ultrathinkプロトコル使用
     
-    # タスク固有の設定
-    config:
+    # MCP固有設定
+    mcp_config:
+      tool_name: "create_child_cc"
+      parent_instance_required: true
+      worktree_isolation: true
+      real_time_progress: true
+    
+    # タスク実行設定
+    execution_config:
       language: "typescript"
-      framework: "express"
-      test_required: true
+      framework: "fastify"
+      database: "prisma_postgresql"
+      test_framework: "jest"
+      ci_cd: "github_actions"
       
-    # 入力パラメータ
-    input:
-      source_files:
-        - "src/models/user.ts"
-        - "src/routes/auth.ts"
-      requirements:
-        - "パスワードはbcryptでハッシュ化"
-        - "JWTトークンの有効期限は24時間"
-        - "リフレッシュトークン機能を実装"
-        
-    # 親CCから子CCへの指示（ultrathinkプロトコル）
-    instruction: |
+    # ultrathink指示テンプレート
+    ultrathink_instruction: |
       ultrathink
-      ユーザー認証API実装タスクを開始してください。
-      要件:
-      - JWT認証の実装
-      - bcryptによるパスワードハッシュ化
-      - リフレッシュトークン機能
-      テストケースも含めて実装し、完了後は進捗を報告してください。
-        
+      
+      === MCP並列実行タスク ===
+      タスク: JWT + OAuth2.0認証API実装
+      
+      ## 実装要件
+      1. Fastify + TypeScript基盤構築
+      2. Prisma ORM + PostgreSQL統合
+      3. JWT認証ミドルウェア実装
+      4. OAuth2.0プロバイダー連携（Google, GitHub）
+      5. リフレッシュトークン機能
+      6. レート制限・セキュリティ対策
+      7. OpenAPI仕様書自動生成
+      8. Jest単体・統合テスト（90%カバレッジ）
+      
+      ## 技術仕様
+      - Node.js 18+ / TypeScript 5+
+      - Fastify 4.x + Plugins
+      - Prisma 5.x + PostgreSQL
+      - jsonwebtoken + bcrypt
+      - 環境変数による設定管理
+      - Docker対応（開発・本番）
+      
+      ## 成果物
+      - /src/auth/ ディレクトリ完全実装
+      - API仕様書（OpenAPI 3.0）
+      - テストスイート（90%+ カバレッジ）
+      - Docker設定ファイル
+      - README + セットアップガイド
+      
+      このworktreeで独立実装し、定期的に進捗をMCP経由で報告してください。
+      
     # 期待される出力
     output:
       files:
-        - "src/controllers/authController.ts"
-        - "src/middleware/authMiddleware.ts"
-        - "tests/auth.test.ts"
-      artifacts:
-        - type: "api_documentation"
-          format: "openapi"
-          
-    # 実行スクリプト（CC実行時のプロンプト）
-    script: |
-      以下の要件に基づいてユーザー認証APIを実装してください：
-      1. JWT認証の実装
-      2. ユーザー登録エンドポイント（/api/auth/register）
-      3. ログインエンドポイント（/api/auth/login）
-      4. トークンリフレッシュエンドポイント（/api/auth/refresh）
-      5. 適切なエラーハンドリング
-      6. ユニットテストの作成
-
-  # データベース設計タスク
-  - id: "task-002"
-    name: "商品データベース設計"
-    description: "商品管理のためのデータベーススキーマ設計"
-    type: "design"
-    priority: 9
-    dependencies: []
-    assigned_cc_type: "child"
-    
-    config:
-      database: "postgresql"
-      include_migration: true
+        - "src/auth/controllers/authController.ts"
+        - "src/auth/middleware/jwtMiddleware.ts"
+        - "src/auth/services/authService.ts"
+        - "src/auth/schemas/authSchemas.ts"
+        - "src/auth/routes/authRoutes.ts"
+        - "prisma/migrations/001_auth_tables.sql"
+        - "tests/auth/auth.test.ts"
+        - "docs/api/auth.yaml"
+        - "docker/auth-service.dockerfile"
       
-    input:
-      requirements:
-        - "商品の多言語対応"
-        - "在庫管理機能"
-        - "カテゴリの階層構造"
-        - "商品バリエーション（サイズ、色）"
-        
-    output:
-      files:
-        - "docs/db/product_schema.sql"
-        - "migrations/001_create_products.sql"
-        - "docs/db/product_er_diagram.md"
-        
-    script: |
-      商品管理データベースの設計を行ってください：
-      1. テーブル設計（products, categories, inventory等）
-      2. インデックス設計
-      3. 外部キー制約
-      4. ER図の作成
-      5. マイグレーションファイルの生成
+      mcp_artifacts:
+        - type: "api_documentation"
+          format: "openapi_3.0"
+          endpoint: "/docs/auth"
+        - type: "test_results"
+          format: "jest_json"
+          coverage_target: 90
+        - type: "security_scan"
+          format: "owasp_zap"
+          
+    # リアルタイム進捗監視
+    progress_tracking:
+      milestones:
+        - name: "基盤セットアップ"
+          percentage: 20
+          estimated_duration: "30min"
+        - name: "JWT実装"
+          percentage: 40
+          estimated_duration: "60min"
+        - name: "OAuth2.0統合"
+          percentage: 60
+          estimated_duration: "90min"
+        - name: "テスト実装"
+          percentage: 80
+          estimated_duration: "60min"
+        - name: "ドキュメント完成"
+          percentage: 100
+          estimated_duration: "30min"
+      
+      sse_notifications:
+        - event: "milestone_completed"
+          payload: ["milestone_name", "completion_time", "next_milestone"]
+        - event: "error_occurred"
+          payload: ["error_type", "error_message", "recovery_action"]
+        - event: "test_results"
+          payload: ["test_count", "passed", "failed", "coverage"]
 
-  # フロントエンド実装タスク
-  - id: "task-003"
-    name: "商品一覧画面実装"
-    description: "React/Next.jsを使用した商品一覧画面の実装"
+  # フロントエンド実装（並列実行）
+  - id: "mcp-nextjs-dashboard"
+    name: "Next.js管理ダッシュボード - MCP並列実装"
+    description: "shadcn/ui + Tailwind CSSによるモダン管理画面"
     type: "development"
-    priority: 7
-    dependencies: ["task-001", "task-002"]  # 認証APIとDB設計に依存
-    assigned_cc_type: "child"
+    priority: 9
+    dependencies: ["mcp-auth-api"]     # 認証API完了後
+    mcp_enabled: true
+    ultrathink_protocol: true
     
-    config:
-      framework: "nextjs"
+    mcp_config:
+      parent_dependency_wait: true    # 依存タスク完了待機
+      real_time_sync: true           # リアルタイム同期
+      
+    execution_config:
+      framework: "nextjs_14"
+      ui_library: "shadcn_ui"
       styling: "tailwindcss"
       state_management: "zustand"
+      api_client: "tanstack_query"
       
-    input:
-      design_files:
-        - "designs/product_list.figma"
-      api_spec:
-        - "docs/api/products.yaml"
-        
+    ultrathink_instruction: |
+      ultrathink
+      
+      === Next.js管理ダッシュボード実装 ===
+      
+      ## 機能要件
+      1. 認証済みユーザー管理画面
+      2. リアルタイムダッシュボード
+      3. レスポンシブデザイン（mobile-first）
+      4. アクセシビリティ対応（WCAG 2.1 AA）
+      5. ダークモード・ライトモード
+      6. 多言語対応（i18n）
+      
+      ## 技術スタック
+      - Next.js 14 (App Router)
+      - TypeScript + ESLint + Prettier
+      - shadcn/ui + Tailwind CSS
+      - Zustand (状態管理)
+      - TanStack Query (データフェッチ)
+      - React Hook Form + Zod
+      
+      ## ページ構成
+      - /dashboard - メインダッシュボード
+      - /users - ユーザー管理
+      - /products - 商品管理
+      - /orders - 注文管理
+      - /analytics - 分析画面
+      - /settings - 設定画面
+      
+      並列実行環境でモダンな管理画面を構築してください。
+      
     output:
       files:
-        - "pages/products/index.tsx"
-        - "components/ProductCard.tsx"
-        - "components/ProductFilter.tsx"
-        - "hooks/useProducts.ts"
-        - "tests/products.test.tsx"
-        
-    script: |
-      商品一覧画面を実装してください：
-      1. 商品一覧の表示（グリッドレイアウト）
-      2. ページネーション
-      3. フィルタリング（カテゴリ、価格帯）
-      4. ソート機能（価格、人気順、新着順）
-      5. レスポンシブデザイン
-      6. ローディング状態の実装
+        - "app/dashboard/page.tsx"
+        - "app/users/page.tsx"
+        - "app/products/page.tsx"
+        - "components/ui/*.tsx"
+        - "lib/api/client.ts"
+        - "lib/stores/dashboard.ts"
+        - "tests/pages/*.test.tsx"
 
-  # インテグレーションテストタスク
-  - id: "task-004"
-    name: "E2Eテスト作成"
-    description: "主要機能のE2Eテスト作成"
-    type: "testing"
-    priority: 5
-    dependencies: ["task-001", "task-003"]
-    assigned_cc_type: "child"
+  # データベース設計（基盤タスク）
+  - id: "mcp-database-design"
+    name: "PostgreSQL + Prismaスキーマ設計"
+    description: "スケーラブルなデータベース設計とマイグレーション"
+    type: "design"
+    priority: 10
+    dependencies: []
+    mcp_enabled: true
+    ultrathink_protocol: true
     
-    config:
-      test_framework: "playwright"
-      browsers: ["chromium", "firefox", "webkit"]
+    ultrathink_instruction: |
+      ultrathink
       
-    input:
-      test_scenarios:
-        - "ユーザー登録からログインまでのフロー"
-        - "商品検索と詳細表示"
-        - "カート追加と決済フロー"
-        
+      === データベース設計タスク ===
+      
+      ## 設計要件
+      1. ユーザー・認証テーブル設計
+      2. 商品・カテゴリ階層設計
+      3. 注文・決済フロー設計
+      4. ログ・監査テーブル設計
+      5. インデックス最適化
+      6. パフォーマンス考慮
+      
+      ## 技術仕様
+      - PostgreSQL 15+
+      - Prisma ORM 5.x
+      - マイグレーション管理
+      - シード データ作成
+      - バックアップ戦略
+      
+      完全なER図とマイグレーションを並列実装してください。
+      
     output:
       files:
-        - "e2e/auth.spec.ts"
-        - "e2e/products.spec.ts"
-        - "e2e/checkout.spec.ts"
-        
-    script: |
-      E2Eテストを作成してください：
-      1. テストシナリオの実装
-      2. データのセットアップとクリーンアップ
-      3. 複数ブラウザでの動作確認
-      4. スクリーンショットの取得
-      5. テストレポートの生成設定
+        - "prisma/schema.prisma"
+        - "prisma/migrations/*.sql"
+        - "prisma/seed.ts"
+        - "docs/database/er-diagram.md"
+        - "docs/database/performance-guide.md"
 
-  # ドキュメント生成タスク
-  - id: "task-005"
-    name: "技術ドキュメント作成"
-    description: "プロジェクトの技術ドキュメント作成"
+  # APIドキュメント生成（並列タスク）
+  - id: "mcp-api-docs"
+    name: "OpenAPI + Swagger UI自動生成"
+    description: "自動API仕様書生成とInteractive UI"
     type: "documentation"
-    priority: 3
-    dependencies: ["task-001", "task-002", "task-003", "task-004"]
-    assigned_cc_type: "child"
+    priority: 6
+    dependencies: ["mcp-auth-api", "mcp-database-design"]
+    mcp_enabled: true
+    ultrathink_protocol: true
     
-    config:
-      format: "markdown"
-      include_diagrams: true
+    ultrathink_instruction: |
+      ultrathink
+      
+      === API仕様書自動生成 ===
+      
+      ## 実装内容
+      1. OpenAPI 3.0仕様書自動生成
+      2. Swagger UI統合
+      3. APIテストクライアント
+      4. コード例生成（多言語）
+      5. バージョン管理対応
+      
+      依存タスクと連携してAPI仕様書を自動生成してください。
       
     output:
       files:
-        - "README.md"
-        - "docs/ARCHITECTURE.md"
-        - "docs/API.md"
-        - "docs/DEPLOYMENT.md"
-        
-    script: |
-      技術ドキュメントを作成してください：
-      1. プロジェクト概要とセットアップ手順
-      2. アーキテクチャ説明
-      3. API仕様書
-      4. デプロイメント手順
-      5. トラブルシューティングガイド
+        - "docs/api/openapi.yaml"
+        - "docs/api/swagger-ui.html"
+        - "scripts/generate-docs.ts"
 
-# タスクグループ（並列実行可能なタスクのグループ化）
-task_groups:
-  - id: "group-001"
-    name: "基盤開発"
-    tasks: ["task-001", "task-002"]
-    max_parallel: 2
+  # パフォーマンステスト（品質保証）
+  - id: "mcp-performance-test"
+    name: "負荷テスト + パフォーマンス監視"
+    description: "k6 + Grafanaによる性能テスト実装"
+    type: "testing"
+    priority: 7
+    dependencies: ["mcp-auth-api", "mcp-nextjs-dashboard"]
+    mcp_enabled: true
+    ultrathink_protocol: true
     
-  - id: "group-002"
-    name: "フロントエンド開発"
-    tasks: ["task-003"]
+    ultrathink_instruction: |
+      ultrathink
+      
+      === パフォーマンステスト実装 ===
+      
+      ## テスト内容
+      1. API負荷テスト（k6）
+      2. フロントエンド性能測定（Lighthouse）
+      3. データベース性能テスト
+      4. メモリ・CPU監視
+      5. Grafanaダッシュボード
+      
+      ## 目標値
+      - API レスポンス: 200ms以下
+      - フロントエンド FCP: 1.5s以下
+      - 同時接続: 1000ユーザー
+      - スループット: 10000 req/min
+      
+      並列環境で包括的な性能テストを実装してください。
+      
+    output:
+      files:
+        - "tests/performance/k6-scripts/*.js"
+        - "tests/performance/lighthouse.config.js"
+        - "monitoring/grafana-dashboard.json"
+        - "docs/performance/benchmarks.md"
+
+  # セキュリティ監査（重要タスク）
+  - id: "mcp-security-audit"
+    name: "OWASP準拠セキュリティ監査"
+    description: "包括的セキュリティテストと脆弱性対策"
+    type: "security"
+    priority: 9
+    dependencies: ["mcp-auth-api", "mcp-nextjs-dashboard", "mcp-database-design"]
+    mcp_enabled: true
+    ultrathink_protocol: true
+    
+    ultrathink_instruction: |
+      ultrathink
+      
+      === セキュリティ監査実装 ===
+      
+      ## 監査項目
+      1. OWASP Top 10対策検証
+      2. 認証・認可脆弱性テスト
+      3. SQLインジェクション対策
+      4. XSS・CSRF防御確認
+      5. 機密情報漏洩チェック
+      6. 依存関係脆弱性スキャン
+      
+      ## ツール使用
+      - OWASP ZAP
+      - ESLint Security Plugin
+      - npm audit / Snyk
+      - Lighthouse Security
+      
+      全コンポーネントの包括的セキュリティ監査を実行してください。
+      
+    output:
+      files:
+        - "security/owasp-zap-report.html"
+        - "security/vulnerability-scan.json"
+        - "security/security-checklist.md"
+        - "docs/security/threat-model.md"
+
+# MCP並列実行グループ
+mcp_task_groups:
+  - id: "foundation-group"
+    name: "基盤開発グループ"
+    description: "認証・DB・基盤APIの並列実装"
+    tasks: ["mcp-auth-api", "mcp-database-design"]
+    max_parallel: 2
+    execution_order: "parallel"
+    
+  - id: "frontend-group"
+    name: "フロントエンド開発グループ"  
+    description: "UI/UXコンポーネントの並列実装"
+    tasks: ["mcp-nextjs-dashboard"]
     max_parallel: 1
+    dependencies: ["foundation-group"]
     
-  - id: "group-003"
-    name: "品質保証"
-    tasks: ["task-004", "task-005"]
-    max_parallel: 2
+  - id: "quality-group"
+    name: "品質保証グループ"
+    description: "テスト・ドキュメント・セキュリティの並列実行"
+    tasks: ["mcp-api-docs", "mcp-performance-test", "mcp-security-audit"]
+    max_parallel: 3
+    dependencies: ["foundation-group", "frontend-group"]
 
-# 実行順序の定義
-execution_order:
-  - phase: "基盤構築"
-    groups: ["group-001"]
+# MCP実行フェーズ
+mcp_execution_phases:
+  - phase: "基盤構築フェーズ"
+    description: "認証・データベース基盤の並列構築"
+    groups: ["foundation-group"]
+    success_criteria:
+      - all_tasks_completed: true
+      - test_coverage_min: 85
+      - security_scan_passed: true
     
-  - phase: "機能実装"
-    groups: ["group-002"]
+  - phase: "フロントエンド実装フェーズ"
+    description: "ユーザーインターフェース実装"
+    groups: ["frontend-group"]
+    success_criteria:
+      - ui_components_complete: true
+      - accessibility_aa_compliant: true
+      - performance_lighthouse_90: true
     
-  - phase: "品質保証"
-    groups: ["group-003"]
+  - phase: "品質保証フェーズ"
+    description: "テスト・ドキュメント・セキュリティ監査"
+    groups: ["quality-group"]
+    success_criteria:
+      - performance_targets_met: true
+      - security_vulnerabilities_zero: true
+      - documentation_complete: true
 
-# 成功条件
-success_criteria:
-  - all_tasks_completed: true
-  - test_coverage: 80
-  - no_critical_errors: true
+# ultrathink プロトコル設定
+ultrathink_config:
+  keyword_validation: true          # キーワード検証有効
+  instruction_format: "structured"  # 構造化指示形式
+  progress_reporting: "real_time"   # リアルタイム進捗報告
+  error_handling: "auto_retry"      # 自動エラーリトライ
+  session_management: true          # セッション管理
   
-# 通知設定
-notifications:
-  on_task_complete:
-    enabled: true
-    method: "dashboard"
+  # 通信ログ設定
+  logging:
+    level: "info"
+    include_payload: true
+    retention_days: 30
     
-  on_task_failure:
-    enabled: true
-    method: "dashboard"
-    include_logs: true
+  # 通知設定
+  notifications:
+    milestone_completion: true
+    error_detection: true
+    performance_alerts: true
+    security_warnings: true
+
+# リアルタイム監視・成功条件
+success_criteria:
+  # 技術指標
+  technical_metrics:
+    all_tasks_completed: true
+    test_coverage_minimum: 85
+    performance_targets_met: true
+    security_vulnerabilities: 0
     
-  on_project_complete:
+  # 品質指標  
+  quality_metrics:
+    code_review_passed: true
+    accessibility_compliant: true
+    documentation_complete: true
+    mcp_integration_verified: true
+    
+  # MCPシステム指標
+  mcp_metrics:
+    parallel_execution_efficiency: 70  # 70%時間短縮目標
+    real_time_communication_latency: 500  # 500ms以下
+    error_recovery_success_rate: 95   # 95%自動復旧
+    resource_utilization_optimal: true
+
+# MCP通知・アラート設定
+mcp_notifications:
+  # タスク完了通知
+  task_completion:
     enabled: true
-    method: "dashboard"
-    summary_report: true
+    method: "sse"
+    include_metrics: true
+    
+  # エラー・障害通知
+  task_failure:
+    enabled: true
+    method: "sse"
+    auto_retry: true
+    escalation_threshold: 3
+    
+  # プロジェクト完了通知
+  project_completion:
+    enabled: true
+    method: "sse"
+    generate_report: true
+    include_analytics: true
+    
+  # パフォーマンス監視
+  performance_monitoring:
+    enabled: true
+    real_time_metrics: true
+    threshold_alerts: true
+    trend_analysis: true
