@@ -1,0 +1,10 @@
+#!/usr/bin/expect -f
+
+# Disable timeout
+set timeout -1
+
+# Start claude
+spawn claude
+
+# Pass through all I/O
+interact
