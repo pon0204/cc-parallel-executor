@@ -32,6 +32,7 @@ export function CCTerminal({
   const [isConnected, setIsConnected] = useState(false);
   const [sessionInitialized, setSessionInitialized] = useState(false);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
   useEffect(() => {
     if (!terminalRef.current) return;
@@ -91,13 +92,35 @@ export function CCTerminal({
     // Fit terminal to container
     setTimeout(() => {
       fitAddon.fit();
+      // Send initial size to PTY
+      if (socketInstance && socketInstance.connected) {
+        socketInstance.emit('resize', { cols: term.cols, rows: term.rows });
+      }
     }, 0);
 
-    // Handle window resize
+    // Handle window resize and container resize
     const handleResize = () => {
+      // Store previous size
+      const prevCols = term.cols;
+      const prevRows = term.rows;
+      
+      // Fit terminal
       fitAddon.fit();
+      
+      // Only send resize if size actually changed
+      if ((term.cols !== prevCols || term.rows !== prevRows) && socketInstance && socketInstance.connected) {
+        console.log(`Terminal resized: ${prevCols}x${prevRows} -> ${term.cols}x${term.rows}`);
+        socketInstance.emit('resize', { cols: term.cols, rows: term.rows });
+      }
     };
     window.addEventListener('resize', handleResize);
+    
+    // Also observe container size changes
+    const resizeObserver = new ResizeObserver(() => {
+      handleResize();
+    });
+    resizeObserver.observe(terminalRef.current);
+    resizeObserverRef.current = resizeObserver;
 
     // Set up terminal data handler immediately
     term.onData((data) => {
@@ -122,10 +145,13 @@ export function CCTerminal({
     socketInstance.on('connect', () => {
       setIsConnected(true);
 
-      // Create new terminal session with larger size for Claude Code
+      // Ensure terminal is fitted before creating session
+      fitAddon.fit();
+      
+      // Create new terminal session with current terminal size
       socketInstance.emit('create-session', {
-        cols: term.cols || 120,
-        rows: term.rows || 40,
+        cols: term.cols,
+        rows: term.rows,
         env: {
           CC_INSTANCE_ID: instanceId,
           CC_TYPE: type,
@@ -148,6 +174,12 @@ export function CCTerminal({
 
     socketInstance.on('session-created', (data) => {
       const sessionId = typeof data === 'string' ? data : data?.sessionId || 'unknown';
+
+      // Immediately send current terminal size after session creation
+      setTimeout(() => {
+        fitAddon.fit();
+        socketInstance.emit('resize', { cols: term.cols, rows: term.rows });
+      }, 100);
 
       // Show initial prompt for parent CC only once
       if (type === 'parent' && !sessionInitialized) {
@@ -188,10 +220,16 @@ export function CCTerminal({
     );
 
     setSocket(socketInstance);
+    
+    // Store socket instance for resize handler  
+    // socketInstance is already available in closure
 
     // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize);
+      if (resizeObserverRef.current) {
+        resizeObserverRef.current.disconnect();
+      }
       term.dispose();
       socketInstance.disconnect();
     };
