@@ -51,12 +51,22 @@ prisma/migrations/
 # Logs
 logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
 
 # Project specific
 worktrees/
 dist/
 .claude/
 tmp/
+temp/
+*.tmp
+*.temp
+*.cache
+.cache/
 
 # MCP Server build artifacts
 mcp-server/dist/

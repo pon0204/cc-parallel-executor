@@ -96,8 +96,9 @@ taskRouter.post('/upload/:projectId', async (req: Request, res: Response) => {
           if (dependsOnId) {
             await prisma.taskDependency.create({
               data: {
-                dependentTaskId: taskId,
-                dependsOnTaskId: dependsOnId,
+                taskId: taskId,
+                dependencyTaskId: dependsOnId,
+                dependencyType: 'depends_on',
               },
             });
           }
@@ -128,12 +129,12 @@ taskRouter.get('/project/:projectId', async (req: Request, res: Response) => {
       include: {
         dependencies: {
           include: {
-            dependsOnTask: true,
+            dependencyTask: true,
           },
         },
         dependents: {
           include: {
-            dependentTask: true,
+            task: true,
           },
         },
       },
@@ -159,7 +160,7 @@ taskRouter.get('/:id', async (req: Request, res: Response) => {
         project: true,
         dependencies: {
           include: {
-            dependsOnTask: true,
+            dependencyTask: true,
           },
         },
         logs: {
@@ -226,7 +227,7 @@ taskRouter.get('/ready/:projectId', async (req: Request, res: Response) => {
       include: {
         dependencies: {
           include: {
-            dependsOnTask: true,
+            dependencyTask: true,
           },
         },
       },
@@ -235,7 +236,7 @@ taskRouter.get('/ready/:projectId', async (req: Request, res: Response) => {
     // Filter tasks that have no pending dependencies
     const readyTasks = pendingTasks.filter(task => {
       return task.dependencies.every(dep => 
-        dep.dependsOnTask.status === 'completed'
+        dep.dependencyTask.status === 'completed'
       );
     });
 

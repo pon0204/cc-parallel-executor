@@ -2,13 +2,13 @@
 
 ## 1. システム概要
 
-**Claude Code Terminal**は、Model Context Protocol (MCP) + Streamable HTTP + Server-Sent Eventsによる**完全自律型**Claude Code並列実行システムです。従来のマイクロサービスアーキテクチャを超越し、**親子Claude Code階層管理**と**リアルタイム通信**を実現する次世代プラットフォームです。
+**Claude Code Terminal**は、Model Context Protocol (MCP) + STDIO Transportによる**完全自律型**Claude Code並列実行システムです。従来のマイクロサービスアーキテクチャを超越し、**親子Claude Code階層管理**と**リアルタイム通信**を実現する次世代プラットフォームです。
 
 ### 🚀 革新的特徴
 
 - **MCP Server**: 並列実行制御の中央司令塔
-- **Streamable HTTP**: 単一エンドポイントでの統合通信
-- **Server-Sent Events**: 双方向リアルタイム通信
+- **STDIO Transport**: Claude CLIとの直接統合
+- **JSON-RPC 2.0**: 標準プロトコル準拠通信
 - **ultrathinkプロトコル**: 確実な親子CC間指示伝達
 - **Git Worktree**: タスクごとの隔離実行環境
 
@@ -30,21 +30,19 @@ graph TD
     subgraph "通信レイヤー"
         C -.->|WebSocket| G[Socket.IO]
         C -.->|HTTP| H[Next.js API Routes]
-        C -.->|SSE| I[Streamable HTTP]
     end
     
     subgraph "バックエンドレイヤー"
         G --> J[Project Server :3001]
         H --> J
-        I --> K[MCP Server :3002]
         
         J --> L[Express + Socket.IO]
         J --> M[Prisma ORM]
         J --> N[Terminal Service]
         
-        K --> O[Streamable HTTP Server]
+        K[MCP Server STDIO] --> O[STDIO Transport]
         K --> P[MCP Tools]
-        K --> Q[SSE Manager]
+        K --> Q[JSON-RPC Handler]
     end
     
     subgraph "実行レイヤー"
@@ -125,21 +123,17 @@ const { data: tasks } = useProjectTasks(projectId);
 const { mutate: createProject } = useCreateProject();
 ```
 
-### 3.2 MCP サーバーレイヤー (Port 3002)
+### 3.2 MCP サーバーレイヤー (STDIO)
 
 #### **革命的アーキテクチャ**
 
-**Streamable HTTP Server** - 並列実行制御の中央司令塔
+**STDIO MCP Server** - 並列実行制御の中央司令塔
 
 ```typescript
-class StreamableMCPServer {
-  // 単一エンドポイント `/mcp` で全通信を統合
-  private handleMCPRequest(req: Request, res: Response): void
-  private handleMCPStream(req: Request, res: Response): void
-  
-  // Server-Sent Events管理
-  private activeConnections: Map<string, Response>
-  private sendSSEMessage(res: Response, message: MCPMessage): void
+class MCPServer {
+  // STDIO Transport経由でClaude CLIと直接通信
+  private transport: StdioServerTransport
+  private server: McpServer
   
   // MCP Tools
   private handleCreateChildCC(): Promise<ChildCCResult>
@@ -180,15 +174,16 @@ class StreamableMCPServer {
   }
 }
 
-// 4. SSE Progress Notification
-data: {
+// 4. Tool Response
+{
   "jsonrpc": "2.0",
-  "method": "notification/progress", 
-  "params": {
-    "taskId": "task-456",
-    "stage": "worktree_created",
-    "message": "Git worktree created successfully"
-  }
+  "result": {
+    "content": [{
+      "type": "text",
+      "text": "子CCインスタンスを作成しました"
+    }]
+  },
+  "id": 1
 }
 ```
 
@@ -364,19 +359,19 @@ sequenceDiagram
     participant CC as 子CC
     participant WT as Git Worktree
     
-    PC->>MCP: POST /mcp (create_child_cc)
+    PC->>MCP: create_child_cc tool call
     MCP->>PS: HTTP POST /api/cc/child
     PS->>WT: git worktree add
     WT-->>PS: worktree created
     PS->>CC: spawn child CC process
     CC-->>PS: process started
     PS-->>MCP: HTTP 201 (instance created)
-    MCP-->>PC: JSON-RPC result
+    MCP-->>PC: Tool result
     
     loop Progress Updates
         CC->>PS: progress report
-        PS->>MCP: SSE notification
-        MCP->>PC: SSE stream update
+        PS->>FE: WebSocket update
+        FE-->>User: UI update
     end
     
     PC->>CC: ultrathink protocol
@@ -663,8 +658,7 @@ spec:
       containers:
       - name: mcp-server
         image: claude-code-terminal/mcp-server:latest
-        ports:
-        - containerPort: 3002
+        command: ["bun", "/app/src/index.ts"]
         env:
         - name: PROJECT_SERVER_URL
           value: "http://project-server:3001"

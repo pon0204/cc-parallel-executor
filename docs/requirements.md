@@ -2,7 +2,7 @@
 
 ## 1. システム概要
 
-**Claude Code Terminal**は、Model Context Protocol (MCP) + Streamable HTTP + Server-Sent Eventsによる**完全自律型**Claude Code並列実行システムです。親Claude Codeが子インスタンスを自律的に管理し、**ultrathinkプロトコル**による確実な通信で複雑なプロジェクトを効率的に並列処理します。
+**Claude Code Terminal**は、Model Context Protocol (MCP) + STDIO Transportによる**完全自律型**Claude Code並列実行システムです。親Claude Codeが子インスタンスを自律的に管理し、**ultrathinkプロトコル**による確実な通信で複雑なプロジェクトを効率的に並列処理します。
 
 ## 2. システムの目的・ビジョン
 
@@ -22,11 +22,11 @@
 #### **🤖 MCP並列実行エンジン**
 
 ##### **MCPサーバー機能**
-- **FR-MCP-001**: Streamable HTTPによる単一エンドポイント通信
-- **FR-MCP-002**: Server-Sent Eventsによるリアルタイム進捗配信
-- **FR-MCP-003**: JSON-RPC 2.0準拠のMCPプロトコル実装
-- **FR-MCP-004**: セッション管理と接続プーリング
-- **FR-MCP-005**: 並列実行制御とリソース管理
+- **FR-MCP-001**: STDIO TransportによるClaude CLI直接統合
+- **FR-MCP-002**: JSON-RPC 2.0準拠のMCPプロトコル実装
+- **FR-MCP-003**: ツール実行結果の即座のレスポンス
+- **FR-MCP-004**: 並列実行制御とリソース管理
+- **FR-MCP-005**: プロジェクトサーバーとのHTTP通信
 
 ##### **MCPツール機能**
 - **FR-TOOL-001**: `create_child_cc` - 子CC自動起動機能
@@ -286,7 +286,7 @@
 | 用語 | 定義 | 英語 |
 |------|------|------|
 | **MCP** | Model Context Protocol - AI間通信標準プロトコル | MCP |
-| **Streamable HTTP** | HTTP + SSEによる双方向通信方式 | Streamable HTTP |
+| **STDIO Transport** | 標準入出力によるClaude CLI直接通信 | STDIO Transport |
 | **ultrathink** | 親CCから子CCへの指示識別キーワード | ultrathink Protocol |
 | **親CC** | プロジェクト統括・子CC管理を行うメインインスタンス | Parent Claude Code |
 | **子CC** | 実際のタスク実行を担うワーカーインスタンス | Child Claude Code |
@@ -296,7 +296,7 @@
 
 | 用語 | 定義 | 説明 |
 |------|------|------|
-| **SSE** | Server-Sent Events | サーバーからクライアントへの一方向リアルタイム通信 |
+| **WebSocket** | 双方向リアルタイム通信プロトコル | ブラウザとサーバー間の永続的接続 |
 | **JSON-RPC** | JSON Remote Procedure Call | JSONベースのリモートプロシージャ呼び出しプロトコル |
 | **PTY** | Pseudo Terminal | 仮想端末エミュレーション |
 | **ORM** | Object-Relational Mapping | オブジェクト関係マッピング |

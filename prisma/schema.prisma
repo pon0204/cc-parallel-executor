@@ -29,7 +29,6 @@ model Project {
   tasks       Task[]
   requirements Requirement[]
   features    Feature[]
-  mcpSessions MCPSession[]
   gitWorktrees GitWorktree[]
 
   @@map("projects")
@@ -91,10 +90,9 @@ model TaskDependency {
 model CCInstance {
   id                String    @id @default(cuid())
   projectId         String?   @map("project_id")
-  mcpSessionId      String?   @map("mcp_session_id")
   name              String
-  type              CCType
-  status            CCStatus  @default(IDLE)
+  type              String    @default("PARENT")
+  status            String    @default("IDLE")
   parentInstanceId  String?   @map("parent_instance_id")
   worktreePath      String?   @map("worktree_path")
   processId         String?   @map("process_id")
@@ -111,45 +109,21 @@ model CCInstance {
   
   parentInstance    CCInstance? @relation("CCHierarchy", fields: [parentInstanceId], references: [id])
   childInstances    CCInstance[] @relation("CCHierarchy")
-  mcpSession        MCPSession? @relation(fields: [mcpSessionId], references: [id])
   assignedTasks     Task[]
   logs              CCLog[]
   sentUltrathinkMessages     UltrathinkMessage[] @relation("ParentInstance")
   receivedUltrathinkMessages UltrathinkMessage[] @relation("ChildInstance")
   gitWorktrees      GitWorktree[]
+  mcpMessages       MCPMessage[]
 
   @@map("cc_instances")
 }
 
-// MCPセッション管理（Streamable HTTP + SSE）
-model MCPSession {
-  id                   String    @id @default(cuid())
-  projectId            String?   @map("project_id")
-  parentCcInstanceId   String?   @map("parent_cc_instance_id")
-  sessionType          String    @map("session_type")
-  status               String    @default("active")
-  connectionInfo       String?   @map("connection_info")
-  capabilities         String?
-  userAgent            String?   @map("user_agent")
-  createdAt            DateTime  @default(now()) @map("created_at")
-  lastActivity         DateTime? @map("last_activity")
-  terminatedAt         DateTime? @map("terminated_at")
-  timeoutSeconds       Int       @default(3600) @map("timeout_seconds")
-  sseEnabled           Boolean   @default(true) @map("sse_enabled")
-  metadata             String?
-  
-  project              Project?  @relation(fields: [projectId], references: [id])
-  ccInstances          CCInstance[]
-  messages             MCPMessage[]
-  sseNotifications     SSENotification[]
-
-  @@map("mcp_sessions")
-}
 
 // MCPメッセージログ（JSON-RPC 2.0準拠）
 model MCPMessage {
   id                   String    @id @default(cuid())
-  sessionId            String    @map("session_id")
+  ccInstanceId         String?   @map("cc_instance_id")
   messageType          String    @map("message_type")
   jsonrpcVersion       String    @default("2.0") @map("jsonrpc_version")
   method               String?
@@ -163,7 +137,7 @@ model MCPMessage {
   createdAt            DateTime  @default(now()) @map("created_at")
   responseReceivedAt   DateTime? @map("response_received_at")
   
-  session              MCPSession @relation(fields: [sessionId], references: [id])
+  ccInstance           CCInstance? @relation(fields: [ccInstanceId], references: [id])
   toolCalls            MCPToolCall[]
 
   @@map("mcp_messages")
@@ -173,7 +147,7 @@ model MCPMessage {
 model MCPToolCall {
   id              String    @id @default(cuid())
   messageId       String    @map("message_id")
-  sessionId       String    @map("session_id")
+  ccInstanceId    String?   @map("cc_instance_id")
   toolName        String    @map("tool_name")
   arguments       String
   status          String    @default("pending")
@@ -189,10 +163,10 @@ model MCPToolCall {
   @@map("mcp_tool_calls")
 }
 
-// Server-Sent Events通知
-model SSENotification {
+// WebSocket通知
+model WebSocketNotification {
   id             String    @id @default(cuid())
-  sessionId      String    @map("session_id")
+  socketId       String    @map("socket_id")
   eventType      String    @map("event_type")
   eventName      String    @map("event_name")
   payload        String
@@ -200,10 +174,8 @@ model SSENotification {
   deliveryStatus String    @default("sent") @map("delivery_status")
   retryCount     Int       @default(0) @map("retry_count")
   clientAck      Boolean   @default(false) @map("client_ack")
-  
-  session        MCPSession @relation(fields: [sessionId], references: [id])
 
-  @@map("sse_notifications")
+  @@map("websocket_notifications")
 }
 
 // ultrathinkプロトコル（親子CC通信）

@@ -124,6 +124,36 @@ projectRouter.patch('/:id', validateRequest(UpdateProjectSchema), async (req: Re
   }
 });
 
+// Get tasks for a project
+projectRouter.get('/:id/tasks', async (req: Request, res: Response) => {
+  try {
+    const tasks = await prisma.task.findMany({
+      where: { projectId: req.params.id },
+      include: {
+        dependencies: {
+          include: {
+            dependencyTask: true,
+          },
+        },
+        dependents: {
+          include: {
+            task: true,
+          },
+        },
+      },
+      orderBy: [
+        { status: 'asc' },
+        { priority: 'desc' },
+      ],
+    });
+
+    res.json(tasks);
+  } catch (error) {
+    logger.error('Failed to fetch project tasks:', error);
+    res.status(500).json({ error: 'Failed to fetch tasks' });
+  }
+});
+
 // Delete project
 projectRouter.delete('/:id', async (req: Request, res: Response) => {
   try {

@@ -1,6 +1,6 @@
 # Claude Code Terminal - 革命的MCP並列実行システム
 
-> **🚀 革命的アーキテクチャ**: Model Context Protocol (MCP) + Streamable HTTP + Server-Sent Events による**完全自律型**Claude Code並列オーケストレーション
+> **🚀 革命的アーキテクチャ**: Model Context Protocol (MCP) + STDIO Transport による**完全自律型**Claude Code並列オーケストレーション
 
 Claude Codeの**親子関係管理**と**並列タスク実行**を実現する次世代Webプラットフォーム。親Claude Codeが自律的に子インスタンスを生成・管理し、**ultrathinkプロトコル**によるリアルタイム通信で複雑なプロジェクトを効率的に処理します。
 
@@ -11,10 +11,10 @@ Claude Codeの**親子関係管理**と**並列タスク実行**を実現する�
 - **子CC**: 独立worktreeでの並列タスク実行
 - **ultrathinkプロトコル**: 確実な親子間コマンド伝達
 
-### 🌊 **Streamable HTTP + SSE リアルタイム通信**
-- **単一エンドポイント**: `/mcp` ですべての通信を統合
-- **動的接続アップグレード**: HTTP → Server-Sent Events
-- **双方向通信**: サーバーからクライアントへの進捗通知
+### 🌊 **MCP STDIO Transport**
+- **直接統合**: Claude CLIとの安全な標準入出力通信
+- **JSON-RPC 2.0**: 標準準拠のプロトコル
+- **高速通信**: オーバーヘッドの少ない直接通信
 
 ### ⚡ **完全自律型オーケストレーション**
 - **MCP Server**: 並列実行制御の中央司令塔
@@ -26,7 +26,7 @@ Claude Codeの**親子関係管理**と**並列タスク実行**を実現する�
 - 🖥️ **Webターミナル**: xterm.js + unbuffer PTYによる完全ターミナル環境
 - 📊 **プロジェクトダッシュボード**: shadcn/ui + Tailwind CSSによるモダンUI
 - 🚀 **MCP並列実行**: 最大並列度での効率的タスク処理
-- 📈 **リアルタイム監視**: Server-Sent Eventsによる即座の状態更新
+- 📈 **リアルタイム監視**: WebSocketによる即座の状態更新
 - 🔗 **タスク依存関係**: 自動依存解決とスケジューリング
 - 🗄️ **Prisma データベース**: SQLiteによる軽量データ永続化
 - 🌲 **Git Worktree**: 並列実行時のコード分離とマージ戦略
@@ -48,10 +48,10 @@ Zustand                // 状態管理
 
 ### **バックエンド**
 ```typescript
-// MCP Server (Port 8082)
-Express.js             // RESTful API
-Streamable HTTP        // MCP通信プロトコル
-Server-Sent Events     // リアルタイムストリーミング
+// MCP Server
+STDIO Transport        // Claude CLI直接統合
+JSON-RPC 2.0          // 標準プロトコル
+execa                 // 子プロセス管理
 
 // Project Server (Port 8081)  
 Express.js + Socket.IO // WebSocket + HTTP API
@@ -112,9 +112,10 @@ node scripts/add-sample-tasks.js
 **🎯 3つのサーバーを同時起動:**
 
 ```bash
-# ターミナル 1: MCP Server (ポート 8082)
+# ターミナル 1: MCP Server (STDIO)
 cd mcp-server
-npm install && npm run build && npm start
+npm install && npm run build
+# Claude CLIに登録: claude mcp add claude-code-parallel "bun $(pwd)/src/index.ts"
 
 # ターミナル 2: Project Server (ポート 8081) 
 npm run server
@@ -142,8 +143,8 @@ graph TD
     
     B -.->|WebSocket| D
     D -.->|Socket.IO| G[Terminal Instances]
-    E -.->|SSE| B
-    E -->|HTTP| D
+    E -->|STDIO| F
+    D -->|HTTP| E
     
     F --> H[Git Worktrees]
     F --> I[Task Execution]
@@ -156,8 +157,8 @@ graph TD
 
 ```
 親CC → MCP Server → Project Server → 子CC起動
-   ↖        ↓              ↓
-    ← SSE ← HTTP ← Socket.IO ← Git Worktree
+   ↓        ↓              ↓
+  STDIO   HTTP    Socket.IO → Git Worktree
 ```
 
 ### **コンポーネント詳細**
@@ -166,7 +167,7 @@ graph TD
 |---------------|--------|------|------|
 | **Frontend** | 8080 | UI/UX、ダッシュボード | Next.js, React |
 | **Project Server** | 8081 | API、WebSocket、データ管理 | Express, Socket.IO, Prisma |
-| **MCP Server** | 8082 | 並列実行制御、Streamable HTTP | Express, SSE |
+| **MCP Server** | - | 並列実行制御、STDIO Transport | MCP SDK |
 | **Child CCs** | - | タスク実行、Git Worktree | Claude Code CLI |
 
 ## 🎮 使用方法
@@ -219,8 +220,7 @@ tasks:
 **親CCでのコマンド例:**
 
 ```typescript
-// MCP Server API呼び出し
-POST http://localhost:3002/mcp
+// MCPツールは自動的にClaude Code内で実行
 {
   "jsonrpc": "2.0",
   "id": 1,
@@ -241,7 +241,7 @@ POST http://localhost:3002/mcp
 1. 🌿 Git worktree作成 (`worktree-child-cc-456`)
 2. ⚡ 子CCプロセス起動 (独立環境)
 3. 📡 ultrathinkプロトコルによるタスク指示送信
-4. 📊 リアルタイム進捗のSSE配信
+4. 📊 リアルタイム進捗のWebSocket配信
 5. 🖥️ ダッシュボードに新ターミナルタブ追加
 
 ## 🔧 API仕様
@@ -250,7 +250,7 @@ POST http://localhost:3002/mcp
 
 #### **利用可能なタスク取得**
 ```bash
-POST http://localhost:3002/mcp
+// MCPツールは自動的にClaude Code内で実行
 {
   "jsonrpc": "2.0",
   "method": "tools/call",
@@ -265,7 +265,7 @@ POST http://localhost:3002/mcp
 
 #### **子CC起動**
 ```bash
-POST http://localhost:3002/mcp
+// MCPツールは自動的にClaude Code内で実行
 {
   "jsonrpc": "2.0", 
   "method": "tools/call",
@@ -283,7 +283,7 @@ POST http://localhost:3002/mcp
 
 #### **タスク状況更新**
 ```bash
-POST http://localhost:3002/mcp
+// MCPツールは自動的にClaude Code内で実行
 {
   "jsonrpc": "2.0",
   "method": "tools/call", 
@@ -402,7 +402,7 @@ claude-code-terminal/
 ├── 🤖 mcp-server/                   # MCP Server (革命的!)
 │   ├── src/
 │   │   ├── index.ts                # MCPサーバーエントリーポイント
-│   │   ├── streamable-server.ts    # Streamable HTTP + SSE
+│   │   ├── index.ts                # MCPサーバーエントリーポイント
 │   │   ├── tools/child-cc.ts       # 子CC管理ツール
 │   │   └── types.ts                # TypeScript型定義
 │   ├── package.json                # MCP依存関係
@@ -471,7 +471,7 @@ ultrathink
 - [x] xterm.js ターミナルエミュレーション
 
 ### **Phase 2: 革命的MCPシステム** ✅ **完了** 
-- [x] **MCP Server実装** (Streamable HTTP + SSE)
+- [x] **MCP Server実装** (STDIO Transport)
 - [x] **親子CC階層管理システム**
 - [x] **ultrathinkプロトコル** 実装
 - [x] **Git Worktree並列実行環境**
@@ -502,8 +502,8 @@ cd mcp-server
 npm install
 npm run build
 
-# ポート3002が使用中でないか確認
-lsof -i :3002
+# MCPサーバーが登録されているか確認
+claude mcp list
 ```
 
 #### **子CCが起動しない**
@@ -553,7 +553,7 @@ npm run server
 # 必要ポートの確認
 lsof -i :3000  # Frontend
 lsof -i :3001  # Project Server
-lsof -i :3002  # MCP Server
+# MCP Serverはポートを使用しません (STDIO)
 ```
 
 ## 🤝 コントリビューション
@@ -568,6 +568,8 @@ cd claude-code-terminal
 # 2. 依存関係インストール
 npm install
 cd mcp-server && npm install && cd ..
+# MCPサーバーをClaude CLIに登録
+claude mcp add claude-code-parallel "bun $(pwd)/mcp-server/src/index.ts"
 
 # 3. 開発環境起動
 npm run dev:all  # 全サーバー同時起動
@@ -594,7 +596,7 @@ npm run dev:all  # 全サーバー同時起動
 ## 🙏 謝辞
 
 - **Anthropic**: Claude Codeの革新的プラットフォーム
-- **Model Context Protocol**: 次世代AI通信標準
+- **Model Context Protocol**: 次世代AI統合標準
 - **shadcn/ui**: 美しく機能的なUIコンポーネント
 - **Prisma**: 最高の開発者体験を提供するORM
 - **xterm.js**: 高性能Webターミナルエミュレーション
@@ -603,7 +605,7 @@ npm run dev:all  # 全サーバー同時起動
 
 ## 🌟 **革命はここから始まる**
 
-この**Claude Code Terminal**は、AI開発の未来を実現するプラットフォームです。MCPプロトコルとStreamable HTTPによる**完全自律型**並列実行システムで、従来の開発プロセスを根本的に変革します。
+この**Claude Code Terminal**は、AI開発の未来を実現するプラットフォームです。MCPプロトコルとSTDIO Transportによる**完全自律型**並列実行システムで、従来の開発プロセスを根本的に変革します。
 
 **今すぐ体験して、開発の新時代を実感してください！**
 

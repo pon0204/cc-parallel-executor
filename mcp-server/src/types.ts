@@ -1,3 +1,6 @@
+// Server URL configuration
+export const PROJECT_SERVER_URL = process.env.PROJECT_SERVER_URL || 'http://localhost:8081';
+
 export interface Task {
   id: string;
   projectId: string;

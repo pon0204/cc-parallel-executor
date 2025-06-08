@@ -12,11 +12,9 @@ project:
 
 # MCPグローバル設定
 mcp_settings:
-  server_endpoint: "http://localhost:3002/mcp"
   max_parallel_cc: 10              # 最大並列CC数
   session_timeout: 3600            # セッションタイムアウト（秒）
-  sse_enabled: true                # Server-Sent Events有効化
-  streamable_http: true            # Streamable HTTP使用
+  transport: "stdio"              # STDIOトランスポート使用
 
 # システム設定
 settings:
@@ -130,7 +128,7 @@ tasks:
           percentage: 100
           estimated_duration: "30min"
       
-      sse_notifications:
+      websocket_notifications:
         - event: "milestone_completed"
           payload: ["milestone_name", "completion_time", "next_milestone"]
         - event: "error_occurred"
@@ -443,20 +441,20 @@ mcp_notifications:
   # タスク完了通知
   task_completion:
     enabled: true
-    method: "sse"
+    method: "websocket"
     include_metrics: true
     
   # エラー・障害通知
   task_failure:
     enabled: true
-    method: "sse"
+    method: "websocket"
     auto_retry: true
     escalation_threshold: 3
     
   # プロジェクト完了通知
   project_completion:
     enabled: true
-    method: "sse"
+    method: "websocket"
     generate_report: true
     include_analytics: true
     
