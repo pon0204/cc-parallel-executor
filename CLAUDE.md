@@ -65,7 +65,9 @@ claude-code-terminal/
 │   ├── src/
 │   │   ├── index.ts       # MCPサーバーエントリーポイント
 │   │   ├── streamable-server.ts  # Streamable HTTP + SSE実装
-│   │   ├── tools/child-cc.ts     # 子CC管理ツール
+│   │   ├── tools/
+│   │   │   ├── child-cc.ts        # 子CC管理ツール
+│   │   │   └── parallel-execution.ts  # 並列実行計画・依存関係分析
 │   │   └── types.ts       # MCP関連型定義
 │   └── package.json       # MCP専用依存関係
 ├── prisma/                # データベース（SQLite）
@@ -113,6 +115,39 @@ claude-code-terminal/
 2. **MCPサーバー**: Git worktree作成 + 子CCプロセス起動
 3. **子CC**: ultrathinkキーワード検出でタスク実行モード移行
 4. **WebSocket通信**: リアルタイム進捗更新をフロントエンドに配信
+
+### 並列実行の使用例
+
+```bash
+# 1. 親CCでプロジェクトのタスクを確認
+> get_available_tasks projectId: "project-123"
+
+# 2. 依存関係を分析して並列実行計画を作成・実行
+> create_parallel_child_ccs projectId: "project-123" parentInstanceId: "parent-cc-456" maxParallel: 5
+
+# 実行結果例:
+並列実行計画:
+総タスク数: 8
+実行フェーズ数: 3
+
+フェーズ 1:
+  - Database setup (ID: task-001, 優先度: 10)
+  - Environment config (ID: task-002, 優先度: 9)
+  → これらのタスクは並列実行可能です
+
+フェーズ 2:
+  - Backend API (ID: task-003, 優先度: 8)
+  - Frontend setup (ID: task-004, 優先度: 8)
+  → これらのタスクは並列実行可能です
+
+フェーズ 3:
+  - Integration tests (ID: task-005, 優先度: 5)
+  - Deployment (ID: task-006, 優先度: 3)
+  → これらのタスクは並列実行可能です
+
+# 3. 実行状況を監視
+> get_parallel_execution_status projectId: "project-123"
+```
 
 ### 主要ページ
 
@@ -474,9 +509,39 @@ claude mcp list
 
 親Claude Codeインスタンスで以下のツールが利用可能:
 
-- **create_child_cc**: 子CCインスタンスを作成してタスクを並列実行
+#### タスク並列実行ツール
+- **create_parallel_child_ccs**: 複数の子CCを並列起動して依存関係を考慮した実行計画を作成
+  - プロジェクトの全タスクを分析
+  - 依存関係を自動検出（タスクタイプ、名前から推定）
+  - 並列実行可能なタスクをフェーズごとにグループ化
+  - 各フェーズのタスクを同時に起動
+  - ultrathinkプロトコルで初期指示を自動送信
+
+- **get_parallel_execution_status**: 並列実行の進捗状況を監視
+  - 実行中、待機中、完了、失敗タスクの統計
+  - 各タスクの詳細状態（実行時間、担当CCインスタンス等）
+
+#### 個別タスク管理ツール
+- **create_child_cc**: 単一の子CCインスタンスを作成してタスクを実行
 - **get_available_tasks**: プロジェクトの利用可能なタスクを取得
 - **update_task_status**: タスクのステータスを更新
+
+#### プロジェクト管理ツール
+- **create_project**: 新規プロジェクトを作成
+- **update_project**: プロジェクト情報を更新
+- **delete_project**: プロジェクトを削除
+- **get_project**: プロジェクト詳細を取得
+
+#### タスク管理ツール
+- **create_task**: 新規タスクを作成
+- **update_task**: タスク情報を更新
+- **delete_task**: タスクを削除
+
+#### 要件管理ツール
+- **create_requirement**: 新規要件を作成
+- **update_requirement**: 要件情報を更新
+- **delete_requirement**: 要件を削除
+- **get_requirements**: プロジェクトの全要件を取得
 
 ### トラブルシューティング
 

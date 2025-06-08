@@ -12,6 +12,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { execa } from 'execa';
 import { z } from 'zod';
+import { ParallelExecutionPlanner } from './tools/parallel-execution.js';
 
 // Configuration
 const PROJECT_SERVER_URL = process.env.PROJECT_SERVER_URL || 'http://localhost:8081';
@@ -105,6 +106,27 @@ const getProjectSchema = {
 };
 
 const getRequirementsSchema = {
+  projectId: z.string().describe('ID of the project'),
+};
+
+// Parallel execution schema
+const createParallelChildCCsSchema = {
+  projectId: z.string().describe('ID of the project'),
+  parentInstanceId: z.string().describe('ID of the parent Claude Code instance'),
+  maxParallel: z
+    .number()
+    .int()
+    .min(1)
+    .max(10)
+    .optional()
+    .describe('Maximum number of child CCs to run in parallel (default: 5)'),
+  analyzeDependencies: z
+    .boolean()
+    .optional()
+    .describe('Whether to automatically analyze task dependencies (default: true)'),
+};
+
+const getParallelExecutionStatusSchema = {
   projectId: z.string().describe('ID of the project'),
 };
 
@@ -702,6 +724,260 @@ function createMCPServer() {
       };
     }
   });
+
+  // Tool: get_parallel_execution_status
+  server.tool(
+    'get_parallel_execution_status',
+    getParallelExecutionStatusSchema,
+    async ({ projectId }) => {
+      try {
+        // Get all tasks for the project
+        const tasksResponse = await fetch(`${PROJECT_SERVER_URL}/api/projects/${projectId}/tasks`);
+        if (!tasksResponse.ok) {
+          throw new Error(`Failed to fetch tasks: ${tasksResponse.statusText}`);
+        }
+        const tasks = await tasksResponse.json();
+
+        // Group tasks by status
+        const tasksByStatus = tasks.reduce((acc: any, task: any) => {
+          const status = task.status.toLowerCase();
+          if (!acc[status]) acc[status] = [];
+          acc[status].push(task);
+          return acc;
+        }, {});
+
+        // Create status summary
+        const summary = [
+          `プロジェクト ${projectId} の並列実行状況:`,
+          '',
+          `📊 タスク統計:`,
+          `  - 未実行: ${(tasksByStatus.pending || []).length + (tasksByStatus.queued || []).length}`,
+          `  - 実行中: ${(tasksByStatus.running || []).length}`,
+          `  - 完了: ${(tasksByStatus.completed || []).length}`,
+          `  - 失敗: ${(tasksByStatus.failed || []).length}`,
+          '',
+        ];
+
+        // Add details for running tasks
+        if (tasksByStatus.running && tasksByStatus.running.length > 0) {
+          summary.push('🏃 実行中のタスク:');
+          tasksByStatus.running.forEach((task: any) => {
+            summary.push(`  - ${task.name} (ID: ${task.id})`);
+            if (task.assignedTo) {
+              summary.push(`    CC Instance: ${task.assignedTo}`);
+            }
+            if (task.startedAt) {
+              const duration = Math.floor((Date.now() - new Date(task.startedAt).getTime()) / 1000);
+              summary.push(`    実行時間: ${duration}秒`);
+            }
+          });
+          summary.push('');
+        }
+
+        // Add details for pending/queued tasks
+        const pendingTasks = [...(tasksByStatus.pending || []), ...(tasksByStatus.queued || [])];
+        if (pendingTasks.length > 0) {
+          summary.push('⏳ 待機中のタスク:');
+          pendingTasks.forEach((task: any) => {
+            summary.push(`  - ${task.name} (ID: ${task.id}, 優先度: ${task.priority})`);
+          });
+          summary.push('');
+        }
+
+        // Add details for completed tasks
+        if (tasksByStatus.completed && tasksByStatus.completed.length > 0) {
+          summary.push('✅ 完了したタスク:');
+          tasksByStatus.completed.forEach((task: any) => {
+            summary.push(`  - ${task.name} (ID: ${task.id})`);
+            if (task.completedAt) {
+              summary.push(`    完了時刻: ${new Date(task.completedAt).toLocaleString('ja-JP')}`);
+            }
+          });
+          summary.push('');
+        }
+
+        // Add details for failed tasks
+        if (tasksByStatus.failed && tasksByStatus.failed.length > 0) {
+          summary.push('❌ 失敗したタスク:');
+          tasksByStatus.failed.forEach((task: any) => {
+            summary.push(`  - ${task.name} (ID: ${task.id})`);
+          });
+          summary.push('');
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: summary.join('\n'),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `エラー: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Tool: create_parallel_child_ccs
+  server.tool(
+    'create_parallel_child_ccs',
+    createParallelChildCCsSchema,
+    async ({ projectId, parentInstanceId, maxParallel = 5, analyzeDependencies = true }) => {
+      try {
+        console.error(`[MCP] Starting parallel execution for project ${projectId}`);
+
+        // 1. プロジェクトの詳細を取得
+        const projectResponse = await fetch(`${PROJECT_SERVER_URL}/api/projects/${projectId}`);
+        if (!projectResponse.ok) {
+          throw new Error(`Failed to fetch project: ${projectResponse.statusText}`);
+        }
+        const project = await projectResponse.json();
+
+        // 2. 未実行のタスクを取得
+        const tasksResponse = await fetch(`${PROJECT_SERVER_URL}/api/projects/${projectId}/tasks`);
+        if (!tasksResponse.ok) {
+          throw new Error(`Failed to fetch tasks: ${tasksResponse.statusText}`);
+        }
+        const allTasks = await tasksResponse.json();
+
+        const pendingTasks = allTasks.filter((task: any) =>
+          ['pending', 'queued', 'PENDING', 'QUEUED'].includes(task.status)
+        );
+
+        if (pendingTasks.length === 0) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: '実行可能なタスクがありません。すべてのタスクが完了済みまたは実行中です。',
+              },
+            ],
+          };
+        }
+
+        // 3. 依存関係を分析して実行計画を作成
+        let dependencies = [];
+        if (analyzeDependencies) {
+          dependencies = ParallelExecutionPlanner.estimateDependencies(pendingTasks);
+        }
+
+        const executionPlan = ParallelExecutionPlanner.createExecutionPlan(
+          pendingTasks,
+          dependencies
+        );
+        const planSummary = ParallelExecutionPlanner.formatExecutionPlan(executionPlan);
+
+        console.error('[MCP] Execution plan created:', planSummary);
+
+        // 4. 各フェーズを順番に実行
+        const results: string[] = [];
+        const createdInstances: string[] = [];
+
+        for (const phase of executionPlan.phases) {
+          results.push(`\nフェーズ ${phase.phase + 1} の実行 (${phase.tasks.length}タスク):`);
+
+          // このフェーズのタスクを並列で起動（maxParallelの制限付き）
+          const tasksInThisPhase = phase.tasks.slice(0, maxParallel);
+          const createPromises = tasksInThisPhase.map(async (task) => {
+            try {
+              // 子CCを作成
+              const createResponse = await fetch(`${PROJECT_SERVER_URL}/api/cc/child`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  parentInstanceId,
+                  taskId: task.id,
+                  instruction:
+                    task.instruction ||
+                    `Task: ${task.name}\n\n${task.description || 'No description provided.'}`,
+                  projectWorkdir: project.workdir,
+                }),
+              });
+
+              if (!createResponse.ok) {
+                throw new Error(
+                  `Failed to create child CC for task ${task.id}: ${createResponse.statusText}`
+                );
+              }
+
+              const result = await createResponse.json();
+
+              // タスクステータスを更新
+              await fetch(`${PROJECT_SERVER_URL}/api/tasks/${task.id}/status`, {
+                method: 'PATCH',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  status: 'QUEUED',
+                }),
+              });
+
+              createdInstances.push(result.instanceId);
+              return `✅ ${task.name} (ID: ${task.id}) - 子CC ${result.instanceId} を起動しました`;
+            } catch (error) {
+              return `❌ ${task.name} (ID: ${task.id}) - エラー: ${error instanceof Error ? error.message : 'Unknown error'}`;
+            }
+          });
+
+          const phaseResults = await Promise.all(createPromises);
+          results.push(...phaseResults);
+
+          // 最後のフェーズでない場合は、少し待機
+          if (phase.phase < executionPlan.phases.length - 1) {
+            results.push(
+              `フェーズ ${phase.phase + 1} の子CCが起動しました。次のフェーズは依存関係のため待機します。`
+            );
+          }
+        }
+
+        // 5. 結果をまとめて返す
+        const summary = [
+          '並列実行を開始しました:',
+          '',
+          planSummary,
+          '',
+          '実行結果:',
+          ...results,
+          '',
+          `合計 ${createdInstances.length} 個の子CCインスタンスを起動しました。`,
+          '',
+          'ultrathinkプロトコルで各子CCに初期指示が自動送信されます。',
+        ].join('\n');
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: summary,
+            },
+          ],
+        };
+      } catch (error) {
+        console.error('[MCP] Failed to create parallel child CCs:', error);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `エラー: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+  );
 
   return server;
 }

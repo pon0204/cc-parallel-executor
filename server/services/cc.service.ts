@@ -14,6 +14,8 @@ interface CCSession {
   taskId?: string;
   type: 'parent' | 'child';
   worktreePath?: string;
+  pendingInstruction?: string;
+  claudeStarted?: boolean;
 }
 
 export class CCService {
@@ -210,16 +212,15 @@ export class CCService {
         },
       });
 
-      // Send ultrathink instruction after Claude auto-starts
-      setTimeout(() => {
-        const ultrathinkInstruction = this.formatUltrathinkInstruction(
-          data.instruction,
-          task,
-          worktreePath
-        );
-        logger.info('Sending ultrathink instruction to child CC:', { instanceId: instance.id });
-        this.terminalService.sendData(socket.id, ultrathinkInstruction + '\n');
-      }, 6000); // Give Claude time to auto-start
+      // Store initial instruction for when Claude is ready
+      session.pendingInstruction = this.formatUltrathinkInstruction(
+        data.instruction,
+        task,
+        worktreePath
+      );
+      
+      // Setup listener for Claude readiness
+      this.setupClaudeReadyListener(socket, session);
 
       logger.info('Child CC created:', {
         instanceId: instance.id,
@@ -430,6 +431,42 @@ ${instruction}
 
 Please execute this task in the assigned worktree. Report your progress and any issues back to the parent CC.
 `;
+  }
+  
+  /**
+   * Setup listener for Claude CLI readiness
+   */
+  private setupClaudeReadyListener(socket: Socket, session: CCSession) {
+    // Claude CLI特有の起動パターンを検出
+    const claudeStartPatterns = [
+      /Welcome to Claude!/,
+      /Claude Code v\d+/,
+      /Type .* for help/,
+      /\? for shortcuts/,
+      />\s*$/  // プロンプト
+    ];
+    
+    const checkOutput = (data: string) => {
+      // Claude CLIの起動を検出
+      const isClaudeReady = claudeStartPatterns.some(pattern => pattern.test(data));
+      
+      if (isClaudeReady && !session.claudeStarted && session.pendingInstruction) {
+        session.claudeStarted = true;
+        logger.info('Claude CLI is ready, sending ultrathink instruction:', { 
+          instanceId: session.instanceId 
+        });
+        
+        // 少し遅延を入れて確実に送信
+        setTimeout(() => {
+          this.terminalService.sendData(socket.id, session.pendingInstruction + '\n');
+          delete session.pendingInstruction;
+        }, 500);
+      }
+    };
+    
+    // TerminalServiceから出力を監視
+    socket.on('output', checkOutput);
+    socket.on('data', checkOutput);
   }
 
   /**
