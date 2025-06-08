@@ -21,10 +21,20 @@ const CreateChildCCSchema = z.object({
   name: z.string().optional(),
 });
 
-// Get all CC instances
+// Get all CC instances (with optional project filter)
 ccRouter.get('/', async (req: Request, res: Response) => {
   try {
+    const { projectId } = req.query;
+    
     const instances = await prisma.cCInstance.findMany({
+      where: projectId ? {
+        // For now, we'll use a workaround since we don't have direct projectId in CCInstance
+        // We'll filter by checking related tasks or by name pattern
+        OR: [
+          { name: { contains: projectId as string } },
+          // Add more filtering logic as needed
+        ]
+      } : undefined,
       include: {
         parentInstance: true,
         childInstances: true,

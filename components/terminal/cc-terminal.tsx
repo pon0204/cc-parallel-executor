@@ -79,50 +79,41 @@ export function CCTerminal({ instanceId, type, socketUrl, existingSocket, onRead
     };
     window.addEventListener('resize', handleResize);
 
-    // Socket connection - use existing socket for parent CC
-    const socketInstance = existingSocket && existingSocket.connected 
-      ? existingSocket 
-      : io(socketUrl, {
-          transports: ['websocket'],
-        });
-
-    if (!existingSocket || !existingSocket.connected) {
-      socketInstance.on('connect', () => {
-        console.log(`Connected to socket: ${socketInstance.id} for ${type} CC: ${instanceId}`);
-        setIsConnected(true);
-
-        // Create new terminal session for all CC types
-        socketInstance.emit('create-session', {
-          cols: 120,
-          rows: 30,
-          env: {
-            CC_INSTANCE_ID: instanceId,
-            CC_TYPE: type,
-          },
-        });
-      });
-    } else {
-      // Use existing connected socket and ensure terminal session exists
-      console.log(`Using existing socket: ${socketInstance.id} for ${type} CC: ${instanceId}`);
-      setIsConnected(true);
-      
-      // For parent CC using existing socket, we still need to ensure terminal session exists
-      if (type === 'parent') {
-        setTimeout(() => {
-          socketInstance.emit('create-session', {
-            cols: 120,
-            rows: 30,
-            env: {
-              CC_INSTANCE_ID: instanceId,
-              CC_TYPE: type,
-            },
-          });
-        }, 100);
+    // Set up terminal data handler immediately
+    term.onData((data) => {
+      // Store data for sending when connected
+      if (socketInstance && socketInstance.connected) {
+        socketInstance.emit('input', data);
       }
-    }
+    });
+
+    // Set up terminal resize handler immediately
+    term.onResize(({ cols, rows }) => {
+      if (socketInstance && socketInstance.connected) {
+        socketInstance.emit('resize', { cols, rows });
+      }
+    });
+
+    // Always create a new socket connection for simplicity
+    const socketInstance = io(socketUrl, {
+      transports: ['websocket'],
+    });
+
+    socketInstance.on('connect', () => {
+      setIsConnected(true);
+
+      // Create new terminal session
+      socketInstance.emit('create-session', {
+        cols: 120,
+        rows: 30,
+        env: {
+          CC_INSTANCE_ID: instanceId,
+          CC_TYPE: type,
+        },
+      });
+    });
 
     socketInstance.on('disconnect', () => {
-      console.log('Disconnected from socket');
       setIsConnected(false);
     });
 
@@ -135,8 +126,8 @@ export function CCTerminal({ instanceId, type, socketUrl, existingSocket, onRead
       term.write(data);
     });
 
-    socketInstance.on('session-created', ({ sessionId }: { sessionId: string }) => {
-      console.log(`Terminal session created: ${sessionId}`);
+    socketInstance.on('session-created', (data) => {
+      const sessionId = typeof data === 'string' ? data : data?.sessionId || 'unknown';
       
       // Show initial prompt for parent CC only once
       if (type === 'parent' && !sessionInitialized) {
@@ -144,6 +135,9 @@ export function CCTerminal({ instanceId, type, socketUrl, existingSocket, onRead
         term.writeln(`${type.toUpperCase()} CC Terminal Session: ${sessionId}`);
         term.writeln('Ready for Claude Code startup...');
         term.write('$ ');
+      } else if (type === 'child') {
+        term.writeln(`${type.toUpperCase()} CC Terminal Session: ${sessionId}`);
+        term.writeln('Starting Claude Code...');
       }
       
       onReady?.();
@@ -161,37 +155,7 @@ export function CCTerminal({ instanceId, type, socketUrl, existingSocket, onRead
       onExit?.();
     });
 
-    // CC-specific events
-    socketInstance.on('cc:parent-ready', ({ project }: {project: unknown}) => {
-      console.log('Parent CC ready for project:', project);
-    });
-
-    socketInstance.on('cc:child-ready', ({ task }: {task: unknown}) => {
-      console.log('Child CC ready for task:', task);
-    });
-
-    // Send terminal input to server
-    term.onData((data) => {
-      if (isConnected) {
-        // Echo the input locally for immediate feedback
-        if (data === '\r') {
-          term.write('\r\n');
-        } else if (data === '\u007f') { // Backspace
-          term.write('\b \b');
-        } else if (data.charCodeAt(0) >= 32) { // Printable characters
-          term.write(data);
-        }
-        
-        socketInstance.emit('input', data);
-      }
-    });
-
-    // Handle terminal resize
-    term.onResize(({ cols, rows }) => {
-      if (isConnected) {
-        socketInstance.emit('resize', { cols, rows });
-      }
-    });
+    // CC-specific events (kept for future use)
 
     setSocket(socketInstance);
 

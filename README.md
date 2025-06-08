@@ -21,9 +21,14 @@ Claude Codeの**親子関係管理**と**並列タスク実行**を実現する�
 - **自動Git Worktree**: タスクごとの隔離実行環境
 - **リアルタイム監視**: ダッシュボードでの進捗可視化
 
+### 🖥️ **完全なPTYサポート**
+- **node-pty**: 真の疑似端末（PTY）サポート
+- **Claude Code対応**: Raw modeとInkライブラリ完全サポート
+- **インタラクティブ操作**: シームレスなターミナル体験
+
 ## 📋 主要機能
 
-- 🖥️ **Webターミナル**: xterm.js + unbuffer PTYによる完全ターミナル環境
+- 🖥️ **Webターミナル**: xterm.js + node-ptyによる完全ターミナル環境
 - 📊 **プロジェクトダッシュボード**: shadcn/ui + Tailwind CSSによるモダンUI
 - 🚀 **MCP並列実行**: 最大並列度での効率的タスク処理
 - 📈 **リアルタイム監視**: WebSocketによる即座の状態更新
@@ -54,10 +59,12 @@ JSON-RPC 2.0          // 標準プロトコル
 execa                 // 子プロセス管理
 
 // Project Server (Port 8081)  
+Node.js                // JavaScript実行環境（必須）
 Express.js + Socket.IO // WebSocket + HTTP API
 Prisma ORM             // データベースORM
 SQLite                 // 軽量データベース
-unbuffer               // PTYエミュレーション
+node-pty               // 完全PTYサポート
+tsx                    // TypeScript実行環境
 
 // Frontend (Port 8080)
 Next.js Server         // フロントエンドサーバー
@@ -76,14 +83,16 @@ Process Management    # CCインスタンス管理
 
 ```bash
 # 必須要件
-Node.js >= 18.0.0
-Git >= 2.25.0
+Node.js >= 18.0.0      # node-ptyとの互換性のため必須
+npm >= 8.0.0           # Node.jsパッケージマネージャー
+Git >= 2.25.0          # worktree機能用
 
-# PTYエミュレーション (macOS)
-brew install expect
+# C++コンパイラ (node-ptyのビルド用)
+# macOS
+xcode-select --install
 
-# PTYエミュレーション (Ubuntu/Debian)
-sudo apt-get install expect
+# Ubuntu/Debian
+sudo apt-get install build-essential
 
 # Claude Code CLI
 curl -fsSL https://claude.ai/install.sh | sh
@@ -112,16 +121,19 @@ node scripts/add-sample-tasks.js
 **🎯 3つのサーバーを同時起動:**
 
 ```bash
-# ターミナル 1: MCP Server (STDIO)
-cd mcp-server
-npm install && npm run build
-# Claude CLIに登録: claude mcp add claude-code-parallel "bun $(pwd)/src/index.ts"
+# すべてのサーバーを同時起動（推奨）
+npm run dev
+
+# または個別起動:
+# ターミナル 1: Frontend (ポート 8080)
+npm run dev:next
 
 # ターミナル 2: Project Server (ポート 8081) 
-npm run server
+npm run dev:server
 
-# ターミナル 3: Frontend (ポート 8080)
-npm run dev
+# ターミナル 3: MCP Server (STDIO)
+cd mcp-server && npm install && npm run build
+# Claude CLIに登録: claude mcp add claude-code-parallel "bun $(pwd)/src/index.ts"
 ```
 
 **🌐 アクセス:**
@@ -514,8 +526,21 @@ claude --version
 # Git worktree機能の確認  
 git worktree list
 
-# unbufferの確認
-which unbuffer
+# node-ptyのビルド確認
+ls -la node_modules/node-pty/build/
+```
+
+#### **node-ptyのビルドエラー**
+```bash
+# macOS: Xcode Command Line Toolsをインストール
+xcode-select --install
+
+# Linux: build-essentialをインストール
+sudo apt-get install build-essential
+
+# 依存関係を再インストール
+rm -rf node_modules package-lock.json
+npm install
 ```
 
 #### **データベースエラー**
@@ -572,7 +597,7 @@ cd mcp-server && npm install && cd ..
 claude mcp add claude-code-parallel "bun $(pwd)/mcp-server/src/index.ts"
 
 # 3. 開発環境起動
-npm run dev:all  # 全サーバー同時起動
+npm run dev  # 全サーバー同時起動
 ```
 
 ### **プルリクエスト**
@@ -610,7 +635,7 @@ npm run dev:all  # 全サーバー同時起動
 **今すぐ体験して、開発の新時代を実感してください！**
 
 ```bash
-npm run dev:all
-open http://localhost:3000
+npm run dev
+open http://localhost:8080
 # 🚀 The future of AI development starts here!
 ```

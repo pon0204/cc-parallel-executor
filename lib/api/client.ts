@@ -265,7 +265,7 @@ export const api = {
 
   // CC instances
   cc: {
-    list: () => fetchApi<CCInstance[]>('/cc'),
+    list: (projectId?: string) => fetchApi<CCInstance[]>(`/cc${projectId ? `?projectId=${projectId}` : ''}`),
     get: (id: string) => fetchApi<CCInstance>(`/cc/${id}`),
     createParent: (projectId: string, name?: string) =>
       fetchApi<CCInstance>('/cc/parent', {

@@ -14,6 +14,7 @@ import { TaskCard } from '@/components/dashboard/task-card';
 import { TaskDialog } from '@/components/dashboard/task-dialog';
 import { RequirementCard } from '@/components/dashboard/requirement-card';
 import { RequirementDialog } from '@/components/dashboard/requirement-dialog';
+import { ActiveCCTerminals } from '@/components/dashboard/active-cc-terminals';
 import { ChildCCNotification } from '@/components/notifications/child-cc-notification';
 import { ChildCCStatusBadge } from '@/components/notifications/child-cc-status-badge';
 import type { ClaudeState } from '@/components/notifications/child-cc-status-badge';
@@ -429,6 +430,13 @@ export default function ProjectDashboardPage() {
                 </p>
               </div>
             </div>
+
+            {/* Active Claude Code Terminals */}
+            <ActiveCCTerminals 
+              projectId={project.id} 
+              project={project}
+              parentSocket={socket}
+            />
 
             {/* Quick Overview Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

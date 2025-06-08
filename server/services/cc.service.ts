@@ -204,20 +204,16 @@ export class CCService {
         },
       });
 
-      // Auto-launch Claude with ultrathink instruction
+      // Send ultrathink instruction after Claude auto-starts
       setTimeout(() => {
-        this.terminalService.sendData(socket.id, 'claude\n');
-        
-        // Send ultrathink instruction after Claude starts
-        setTimeout(() => {
-          const ultrathinkInstruction = this.formatUltrathinkInstruction(
-            data.instruction,
-            task,
-            worktreePath
-          );
-          this.terminalService.sendData(socket.id, ultrathinkInstruction);
-        }, 3000); // Give Claude more time to start
-      }, 1000);
+        const ultrathinkInstruction = this.formatUltrathinkInstruction(
+          data.instruction,
+          task,
+          worktreePath
+        );
+        logger.info('Sending ultrathink instruction to child CC:', { instanceId: instance.id });
+        this.terminalService.sendData(socket.id, ultrathinkInstruction + '\n');
+      }, 6000); // Give Claude time to auto-start
 
       logger.info('Child CC created:', { 
         instanceId: instance.id, 
@@ -477,8 +473,8 @@ ${message}
   }
 
   /**
-   * Start child CC via MCP protocol
-   * This method is called from the API endpoint and handles async child CC creation
+   * Start child CC via MCP protocol (simplified)
+   * This method updates the database but the actual Claude process is handled via terminal
    */
   async startChildCC(options: {
     instanceId: string;
@@ -490,7 +486,7 @@ ${message}
     sessionId?: string;
   }): Promise<void> {
     try {
-      const { instanceId, taskId, instruction, projectWorkdir, worktreeName, sessionId } = options;
+      const { instanceId, taskId, projectWorkdir, worktreeName, sessionId } = options;
 
       // Get task details
       const task = await prisma.task.findUnique({
@@ -502,9 +498,7 @@ ${message}
         throw new Error('Task not found');
       }
 
-      // Send progress update via MCP SSE if sessionId provided
       if (sessionId) {
-        // This would be sent via MCP server SSE connection
         logger.info(`[MCP:${sessionId}] Creating git worktree...`);
       }
 
@@ -529,69 +523,14 @@ ${message}
         data: { worktreePath },
       });
 
-      if (sessionId) {
-        logger.info(`[MCP:${sessionId}] Starting Claude Code in worktree...`);
-      }
-
-      // Start Claude Code process in worktree
-      const claudeProcess = execa('claude', [], {
-        cwd: worktreePath,
-        stdio: 'pipe',
-        env: {
-          ...process.env,
-          CC_INSTANCE_ID: instanceId,
-          CC_TYPE: 'child',
-          CC_TASK_ID: taskId,
-          CC_PARENT_ID: options.parentInstanceId,
-        },
-      });
-
-      // Send ultrathink instruction after a delay
-      setTimeout(() => {
-        const ultrathinkInstruction = this.formatUltrathinkInstruction(
-          instruction,
-          task,
-          worktreePath
-        );
-        claudeProcess.stdin?.write(ultrathinkInstruction);
-        claudeProcess.stdin?.end();
-      }, 3000);
-
-      // Log process output
-      claudeProcess.stdout?.on('data', (data) => {
-        logger.info(`[Child CC ${instanceId}] ${data.toString()}`);
-      });
-
-      claudeProcess.stderr?.on('data', (data) => {
-        logger.error(`[Child CC ${instanceId}] ${data.toString()}`);
-      });
-
-      claudeProcess.on('exit', async (code) => {
-        logger.info(`Child CC process exited with code ${code}:`, { instanceId });
-        
-        // Update status based on exit code
-        await prisma.cCInstance.update({
-          where: { id: instanceId },
-          data: { status: code === 0 ? 'stopped' : 'error' },
-        });
-
-        await prisma.task.update({
-          where: { id: taskId },
-          data: { 
-            status: code === 0 ? 'completed' : 'failed',
-            completedAt: new Date(),
-          },
-        });
-      });
-
-      logger.info('Child CC started successfully:', { 
+      logger.info('Child CC setup completed:', { 
         instanceId, 
         taskId,
         worktreePath,
       });
 
       if (sessionId) {
-        logger.info(`[MCP:${sessionId}] Child CC ${instanceId} started successfully`);
+        logger.info(`[MCP:${sessionId}] Child CC ${instanceId} setup completed`);
       }
 
     } catch (error) {

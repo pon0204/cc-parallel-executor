@@ -44,11 +44,6 @@ io.on('connection', (socket) => {
   });
 
   socket.on('input', (data) => {
-    logger.info('Received input data:', { 
-      socketId: socket.id, 
-      dataLength: data.length,
-      preview: data.slice(0, 50) + (data.length > 50 ? '...' : '')
-    });
     terminalService.sendData(socket.id, data);
   });
 
@@ -57,23 +52,11 @@ io.on('connection', (socket) => {
   });
 
   // CC-related events
-  socket.on('cc:create-parent', async (...args: any[]) => {
-    console.log('=== CC CREATE PARENT EVENT ===');
-    console.log('Arguments count:', args.length);
-    for (let i = 0; i < args.length; i++) {
-      console.log(`Arg[${i}]:`, args[i]);
-      console.log(`Arg[${i}] type:`, typeof args[i]);
-      console.log(`Arg[${i}] JSON:`, JSON.stringify(args[i]));
-    }
-    
-    const data = args[0];
+  socket.on('cc:create-parent', async (data) => {
     if (!data || typeof data !== 'object') {
-      console.error('Invalid data received:', data);
       socket.emit('cc:error', { message: 'Invalid data format' });
       return;
     }
-    
-    console.log('Processing CC creation with valid data:', data);
     await ccService.createParentCC(socket, data);
   });
 

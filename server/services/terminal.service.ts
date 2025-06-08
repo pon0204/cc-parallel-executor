@@ -1,11 +1,12 @@
 import type { Server as SocketIOServer, Socket } from 'socket.io';
-import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import { logger } from '../utils/logger.js';
 import { platform } from 'os';
 import { ClaudeOutputAnalyzer, ClaudeState } from './claude-output-analyzer.js';
+import { prisma } from '../utils/prisma.js';
+import { spawn as ptySpawn, type IPty } from 'node-pty';
 
 interface TerminalSession {
-  proc: ChildProcessWithoutNullStreams;
+  proc: IPty;
   socketId: string;
   sessionId: string;
   workdir?: string;
@@ -30,147 +31,149 @@ export class TerminalService {
   }) {
     try {
       const shell = platform() === 'win32' ? 'cmd.exe' : '/bin/bash';
-      const cwd = options?.workdir || process.cwd();
+      let cwd = options?.workdir || process.cwd();
       
-      // Check if unbuffer is available
-      const checkUnbuffer = spawn('which', ['unbuffer']);
-      
-      checkUnbuffer.on('close', (code) => {
-        let proc: ChildProcessWithoutNullStreams;
-        
-        if (code === 0) {
-          // unbuffer is available
-          logger.info('Using unbuffer for PTY emulation');
-          proc = spawn('unbuffer', ['-p', shell, '-i'], {
-            cwd,
-            env: {
-              ...process.env,
-              ...options?.env,
-              TERM: 'xterm-256color',
-              COLUMNS: (options?.cols || 80).toString(),
-              LINES: (options?.rows || 24).toString(),
-              FORCE_COLOR: '1',
-              COLORTERM: 'truecolor',
-              PS1: '\\[\\033[01;32m\\]\\u@\\h\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w\\[\\033[00m\\]\\$ '
-            }
+      // For child CC instances, lookup the worktree path from database
+      if (options?.env?.CC_INSTANCE_ID && options?.env?.CC_TYPE === 'child') {
+        try {
+          const ccInstance = await prisma.cCInstance.findUnique({
+            where: { id: options.env.CC_INSTANCE_ID },
+            select: { worktreePath: true },
           });
-        } else {
-          // unbuffer not available, try stdbuf
-          logger.info('unbuffer not found, trying stdbuf');
-          proc = spawn('stdbuf', ['-o0', '-e0', shell, '-i'], {
-            cwd,
-            env: {
-              ...process.env,
-              ...options?.env,
-              TERM: 'xterm-256color',
-              COLUMNS: (options?.cols || 80).toString(),
-              LINES: (options?.rows || 24).toString(),
-              FORCE_COLOR: '1',
-              COLORTERM: 'truecolor',
-              PS1: '\\[\\033[01;32m\\]\\u@\\h\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w\\[\\033[00m\\]\\$ '
-            }
-          });
-        }
-
-        const sessionId = `session-${Date.now()}`;
-        const session: TerminalSession = {
-          proc,
-          socketId: socket.id,
-          sessionId,
-          workdir: cwd,
-          ccInstanceId: options?.env?.CC_INSTANCE_ID,
-        };
-
-        // Claude Output Analyzerを初期化（CCインスタンスの場合のみ）
-        if (options?.env?.CC_INSTANCE_ID) {
-          session.analyzer = new ClaudeOutputAnalyzer(options.env.CC_INSTANCE_ID, {
-            idleTimeoutMs: 3000,
-            checkIntervalMs: 500
-          });
-
-          // 状態変化のハンドラー
-          session.analyzer.start((event) => {
-            logger.info('Claude state changed:', event);
-
-            // 状態に応じてイベントを発行
-            if (event.to === ClaudeState.WAITING_INPUT) {
-              socket.emit('claude:waiting-for-input', {
-                instanceId: event.instanceId,
-                timestamp: event.timestamp,
-                context: session.analyzer?.getLastOutput(500)
-              });
-            } else if (event.from === ClaudeState.RESPONDING && event.to === ClaudeState.IDLE) {
-              const actionCheck = session.analyzer?.detectActionNeeded();
-              socket.emit('claude:response-complete', {
-                instanceId: event.instanceId,
-                timestamp: event.timestamp,
-                actionNeeded: actionCheck,
-                context: session.analyzer?.getLastOutput(500)
-              });
-            }
-          });
-        }
-
-        this.sessions.set(sessionId, session);
-        this.socketToSession.set(socket.id, sessionId);
-
-        // Handle stdout
-        proc.stdout.on('data', (data) => {
-          const output = data.toString();
-          socket.emit('output', output);
-
-          // Analyzerに出力を送信
-          if (session.analyzer) {
-            session.analyzer.processOutput(output);
-          }
-        });
-
-        // Handle stderr
-        proc.stderr.on('data', (data) => {
-          socket.emit('output', data.toString());
-        });
-
-        // Handle exit
-        proc.on('exit', (code, signal) => {
-          logger.info('Terminal exited:', { sessionId, code, signal });
           
-          // Analyzerをクリーンアップ
-          if (session.analyzer) {
-            session.analyzer.stop();
+          if (ccInstance?.worktreePath) {
+            cwd = ccInstance.worktreePath;
+            logger.info('Using worktree path for child CC:', { 
+              instanceId: options.env.CC_INSTANCE_ID, 
+              worktreePath: cwd 
+            });
           }
-          
-          socket.emit('session-closed', sessionId);
-          this.sessions.delete(sessionId);
-          this.socketToSession.delete(socket.id);
-        });
+        } catch (error) {
+          logger.error('Failed to lookup worktree path for child CC:', error);
+        }
+      }
 
-        proc.on('error', (error) => {
-          logger.error('Process error:', error);
-          socket.emit('error', error.message);
-        });
-
-        // Send session created event
-        socket.emit('session-created', sessionId);
-
-        // Set up initial shell after a delay
-        setTimeout(() => {
-          if (proc.stdin && proc.stdin.writable) {
-            proc.stdin.write('export TERM=xterm-256color\n');
-            proc.stdin.write('clear\n');
-          }
-        }, 200);
-
-        logger.info('Terminal created:', { 
-          sessionId,
-          socketId: socket.id, 
-          pid: proc.pid,
-          workdir: cwd,
-        });
-
-        // Emit terminal ready event
-        logger.info('Emitting session-created event:', { sessionId, socketId: socket.id });
-        socket.emit('session-created', { sessionId });
+      // Use node-pty for proper PTY support (essential for Claude Code)
+      logger.info('Creating terminal with node-pty for full PTY support');
+      const proc = ptySpawn(shell, ['-i'], {
+        name: 'xterm-256color',
+        cols: options?.cols || 80,
+        rows: options?.rows || 24,
+        cwd,
+        env: {
+          ...process.env,
+          ...options?.env,
+          // Essential PTY environment variables for Claude Code
+          TERM: 'xterm-256color',
+          COLORTERM: 'truecolor',
+          FORCE_COLOR: '1',
+          // Shell settings for interactive behavior
+          SHELL: shell,
+          PS1: '\\[\\033[01;32m\\]\\u@\\h\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w\\[\\033[00m\\]\\$ ',
+          // Ink/React compatibility for Claude Code
+          CI: undefined, // Remove CI flag that disables interactive mode
+          FORCE_INTERACTIVE: '1',
+        }
       });
+
+      const sessionId = `session-${Date.now()}`;
+      const session: TerminalSession = {
+        proc,
+        socketId: socket.id,
+        sessionId,
+        workdir: cwd,
+        ccInstanceId: options?.env?.CC_INSTANCE_ID,
+      };
+
+      // Claude Output Analyzerを初期化（CCインスタンスの場合のみ）
+      if (options?.env?.CC_INSTANCE_ID) {
+        session.analyzer = new ClaudeOutputAnalyzer(options.env.CC_INSTANCE_ID, {
+          idleTimeoutMs: 3000,
+          checkIntervalMs: 500
+        });
+
+        // 状態変化のハンドラー
+        session.analyzer.start((event) => {
+          logger.info('Claude state changed:', event);
+
+          // 状態に応じてイベントを発行
+          if (event.to === ClaudeState.WAITING_INPUT) {
+            socket.emit('claude:waiting-for-input', {
+              instanceId: event.instanceId,
+              timestamp: event.timestamp,
+              context: session.analyzer?.getLastOutput(500)
+            });
+          } else if (event.from === ClaudeState.RESPONDING && event.to === ClaudeState.IDLE) {
+            const actionCheck = session.analyzer?.detectActionNeeded();
+            socket.emit('claude:response-complete', {
+              instanceId: event.instanceId,
+              timestamp: event.timestamp,
+              actionNeeded: actionCheck,
+              context: session.analyzer?.getLastOutput(500)
+            });
+          }
+        });
+      }
+
+      this.sessions.set(sessionId, session);
+      this.socketToSession.set(socket.id, sessionId);
+
+      // Handle output (node-pty combines stdout and stderr)
+      proc.onData((data: string) => {
+        socket.emit('output', data);
+
+        // Analyzerに出力を送信
+        if (session.analyzer) {
+          session.analyzer.processOutput(data);
+        }
+      });
+
+      // Handle exit
+      proc.onExit((exitEvent: { exitCode: number; signal?: number }) => {
+        logger.info('Terminal exited:', { sessionId, exitCode: exitEvent.exitCode, signal: exitEvent.signal });
+        
+        // Analyzerをクリーンアップ
+        if (session.analyzer) {
+          session.analyzer.stop();
+        }
+        
+        socket.emit('session-closed', sessionId);
+        this.sessions.delete(sessionId);
+        this.socketToSession.delete(socket.id);
+      });
+
+      logger.info('Enhanced terminal created:', { 
+        sessionId,
+        socketId: socket.id, 
+        pid: proc.pid,
+        workdir: cwd,
+        method: 'node-pty'
+      });
+
+      // Send session created event
+      socket.emit('session-created', { sessionId });
+
+      // Set up initial environment
+      setTimeout(() => {
+        // Initialize terminal with proper settings
+        proc.write('export TERM=xterm-256color\n');
+        proc.write('clear\n');
+        
+        // For child CC instances, automatically start Claude
+        if (options?.env?.CC_TYPE === 'child') {
+          setTimeout(() => {
+            logger.info('Auto-starting Claude for child CC:', { instanceId: options?.env?.CC_INSTANCE_ID });
+            proc.write('claude\n');
+            
+            // Send a test message after Claude should be ready
+            setTimeout(() => {
+              logger.info('Sending test prompt to Claude:', { instanceId: options?.env?.CC_INSTANCE_ID });
+              proc.write('\n'); // Send newline to potentially trigger prompt
+            }, 3000);
+          }, 2000);
+        }
+      }, 500);
+
     } catch (error) {
       logger.error('Failed to create terminal:', error);
       socket.emit('error', error instanceof Error ? error.message : 'Unknown error');
@@ -185,20 +188,13 @@ export class TerminalService {
     }
     
     const session = this.sessions.get(sessionId);
-    if (session && session.proc.stdin.writable) {
-      logger.info('Sending data to terminal:', { 
-        socketId, 
-        sessionId, 
-        dataLength: data.length,
-        preview: data.slice(0, 50) + (data.length > 50 ? '...' : '')
-      });
-      session.proc.stdin.write(data);
+    if (session) {
+      // Use node-pty write method
+      session.proc.write(data);
     } else {
-      logger.warn('No terminal session found or not writable:', { 
+      logger.warn('No terminal session found:', { 
         sessionId, 
-        socketId,
-        sessionExists: !!session,
-        procWritable: session?.proc.stdin.writable
+        socketId
       });
     }
   }
@@ -211,18 +207,9 @@ export class TerminalService {
     }
     
     const session = this.sessions.get(sessionId);
-    if (session && session.proc.stdin.writable) {
-      // Send resize command via stdin
-      session.proc.stdin.write(`stty cols ${dimensions.cols} rows ${dimensions.rows}\n`);
-      
-      // Send SIGWINCH signal on Unix systems
-      if (platform() !== 'win32') {
-        try {
-          process.kill(session.proc.pid!, 'SIGWINCH');
-        } catch (e) {
-          logger.error('Failed to send SIGWINCH:', e);
-        }
-      }
+    if (session) {
+      // Use node-pty resize method
+      session.proc.resize(dimensions.cols, dimensions.rows);
       
       logger.debug('Terminal resized:', { sessionId, socketId, ...dimensions });
     } else {
@@ -245,6 +232,7 @@ export class TerminalService {
           session.analyzer.stop();
         }
         
+        // Use node-pty kill method
         session.proc.kill('SIGTERM');
         this.sessions.delete(sessionId);
         this.socketToSession.delete(socketId);

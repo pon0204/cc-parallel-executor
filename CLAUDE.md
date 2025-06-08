@@ -10,32 +10,34 @@
 
 ```bash
 # 全ての依存関係のインストール（メインプロジェクト + MCPサーバー）
-bun run install:all
+npm run install:all
 
 # 開発モード（3つのサーバーを同時起動）
-bun run dev
+npm run dev
 # または個別に:
-bun run dev:next    # Next.js フロントエンド (:8080)
-bun run dev:server  # プロジェクトサーバー (:8081)
-bun run dev:mcp     # MCPサーバー (:8082)
+npm run dev:next    # Next.js フロントエンド (:8080)
+npm run dev:server  # プロジェクトサーバー (:8081)
+npm run dev:mcp     # MCPサーバー (:8082)
 
 # プロダクションビルド（全コンポーネント）
-bun run build
+npm run build
 
 # プロダクション起動（全サーバー同時）
-bun run start
+npm run start
 
 # データベース関連
-bun run db:generate  # Prismaクライアント生成
-bun run db:push      # スキーマをデータベースにプッシュ
-bun run db:seed      # サンプルデータ投入
+npm run db:generate  # Prismaクライアント生成
+npm run db:push      # スキーマをデータベースにプッシュ
+npm run db:seed      # サンプルデータ投入
 
 # 開発ツール
-bun run lint         # ESLint実行
-bun run format       # Prettier実行
-bun run test         # テスト実行
-bun run clean        # ビルドファイル削除
+npm run lint         # ESLint実行
+npm run format       # Prettier実行
+npm run test         # テスト実行
+npm run clean        # ビルドファイル削除
 ```
+
+**重要**: このプロジェクトはNode.js必須です。node-ptyがBunと互換性がないため、必ずNode.js (18以上推奨) を使用してください。
 
 ## プロジェクト構造
 
@@ -221,16 +223,16 @@ ${instruction}
 
 ```bash
 # 1. 依存関係インストール
-bun run install:all
+npm run install:all
 
 # 2. 環境変数設定
 cp .env.example .env
 # .envを編集して適切な設定を行う
 
 # 3. データベース初期化
-bun run db:generate
-bun run db:push
-bun run db:seed  # オプション：サンプルデータ投入
+npm run db:generate
+npm run db:push
+npm run db:seed  # オプション：サンプルデータ投入
 ```
 
 ### 2. 開発サーバー起動
@@ -238,29 +240,30 @@ bun run db:seed  # オプション：サンプルデータ投入
 **統合起動（推奨）**
 
 ```bash
-bun run dev  # 3つのサーバーを同時起動
+npm run dev  # 3つのサーバーを同時起動
 ```
 
 **個別起動（デバッグ用）**
 
 ```bash
 # ターミナル1: Next.jsフロントエンド
-bun run dev:next
+npm run dev:next
 
 # ターミナル2: プロジェクトサーバー
-bun run dev:server
+npm run dev:server
 
-# ターミナル3: MCPサーバー
-bun run dev:mcp
+# ターミナル3: MCPサーバー（Bunで実行可能）
+cd mcp-server && bun run dev
 ```
 
 ### 3. 前提条件
 
-- **Bun**: JavaScript/TypeScriptランタイム（推奨）
-- **Node.js 18+**: Bunの代替として使用可能
+- **Node.js 18+**: 必須（node-ptyとの互換性のため）
+- **npm**: Node.jsパッケージマネージャー
 - **Git**: worktree機能が必要
 - **Claude CLI**: 子CCインスタンス起動用
 - **SQLite**: データベース（組み込み）
+- **C++コンパイラ**: node-ptyのネイティブビルドに必要（macOSは通常Xcode Command Line Tools、Linuxはbuild-essential）
 
 ### 4. ポート構成（高番号ポート採用）
 
@@ -284,14 +287,18 @@ lsof -i :8081  # プロジェクトサーバー
 kill -9 <PID>
 ```
 
-**Bunが見つからない**
+**node-ptyのビルドエラー**
 
 ```bash
-# Bunインストール
-curl -fsSL https://bun.sh/install | bash
+# macOS: Xcode Command Line Toolsをインストール
+xcode-select --install
 
-# またはnpmを使用
-npm install -g bun
+# Linux: build-essentialをインストール
+sudo apt-get install build-essential
+
+# 依存関係を再インストール
+rm -rf node_modules package-lock.json
+npm install
 ```
 
 ### 2. データベース関連問題
@@ -299,7 +306,7 @@ npm install -g bun
 **Prismaクライアント不整合**
 
 ```bash
-bun run db:generate  # クライアント再生成
+npm run db:generate  # クライアント再生成
 rm -rf node_modules/.cache  # キャッシュクリア
 ```
 
@@ -307,7 +314,7 @@ rm -rf node_modules/.cache  # キャッシュクリア
 
 ```bash
 rm prisma/dev.db*  # データベース削除
-bun run db:push    # スキーマ再適用
+npm run db:push    # スキーマ再適用
 ```
 
 ### 3. MCP接続問題
@@ -379,12 +386,15 @@ claude mcp add claude-code-parallel "bun /path/to/mcp-server/src/index.ts"
 
 ### バックエンド
 
+- **Node.js**: JavaScript実行環境（必須）
 - **Express.js**: HTTP サーバーフレームワーク
 - **Socket.IO**: WebSocket 通信
+- **node-pty**: 完全なPTY（疑似端末）サポート（Claude Code必須）
 - **Prisma ORM**: 型安全データベースアクセス
 - **Winston**: 構造化ログ出力
 - **execa**: 子プロセス実行ラッパー
 - **CORS**: クロスオリジン制御
+- **tsx**: TypeScript実行環境（開発用）
 
 ### MCP関連
 
@@ -451,9 +461,10 @@ claude mcp add claude-code-parallel "bun /path/to/mcp-server/src/index.ts"
 
 ```bash
 # 1. MCPサーバーをビルド
-cd mcp-server && bun run build
+cd mcp-server && npm run build
 
 # 2. Claude CodeにMCPサーバーを登録
+# MCPサーバーはBunで実行可能
 claude mcp add claude-code-parallel "bun /path/to/mcp-server/src/index.ts"
 
 # 3. 登録確認
