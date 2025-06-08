@@ -157,14 +157,47 @@ projectRouter.get('/:id/tasks', async (req: Request, res: Response) => {
 // Delete project
 projectRouter.delete('/:id', async (req: Request, res: Response) => {
   try {
+    const { force } = req.query;
+    
     // Check if project has tasks
     const taskCount = await prisma.task.count({
       where: { projectId: req.params.id },
     });
 
-    if (taskCount > 0) {
+    if (taskCount > 0 && !force) {
       return res.status(400).json({ 
-        error: 'Cannot delete project with existing tasks. Please delete all tasks first.' 
+        error: 'Cannot delete project with existing tasks. Please delete all tasks first or use ?force=true.' 
+      });
+    }
+
+    if (force === 'true') {
+      // Delete all related data in order
+      await prisma.taskLog.deleteMany({
+        where: { task: { projectId: req.params.id } },
+      });
+      
+      await prisma.taskDependency.deleteMany({
+        where: { task: { projectId: req.params.id } },
+      });
+      
+      await prisma.ultrathinkMessage.deleteMany({
+        where: { task: { projectId: req.params.id } },
+      });
+      
+      await prisma.gitWorktree.deleteMany({
+        where: { projectId: req.params.id },
+      });
+      
+      await prisma.task.deleteMany({
+        where: { projectId: req.params.id },
+      });
+      
+      await prisma.requirement.deleteMany({
+        where: { projectId: req.params.id },
+      });
+      
+      await prisma.feature.deleteMany({
+        where: { projectId: req.params.id },
       });
     }
 
@@ -172,10 +205,46 @@ projectRouter.delete('/:id', async (req: Request, res: Response) => {
       where: { id: req.params.id },
     });
 
-    logger.info('Project deleted:', { projectId: req.params.id });
+    logger.info('Project deleted:', { projectId: req.params.id, force: !!force });
     res.status(204).send();
   } catch (error) {
     logger.error('Failed to delete project:', error);
     res.status(500).json({ error: 'Failed to delete project' });
+  }
+});
+
+// Get requirements for a project
+projectRouter.get('/:id/requirements', async (req: Request, res: Response) => {
+  try {
+    const requirements = await prisma.requirement.findMany({
+      where: { projectId: req.params.id },
+      orderBy: [
+        { priority: 'desc' },
+        { createdAt: 'desc' },
+      ],
+    });
+
+    res.json(requirements);
+  } catch (error) {
+    logger.error('Failed to fetch project requirements:', error);
+    res.status(500).json({ error: 'Failed to fetch requirements' });
+  }
+});
+
+// Get features for a project
+projectRouter.get('/:id/features', async (req: Request, res: Response) => {
+  try {
+    const features = await prisma.feature.findMany({
+      where: { projectId: req.params.id },
+      orderBy: [
+        { priority: 'desc' },
+        { createdAt: 'desc' },
+      ],
+    });
+
+    res.json(features);
+  } catch (error) {
+    logger.error('Failed to fetch project features:', error);
+    res.status(500).json({ error: 'Failed to fetch features' });
   }
 });

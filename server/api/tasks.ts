@@ -34,6 +34,24 @@ const TaskDefinitionSchema = z.object({
   tasks: z.array(TaskSchema),
 });
 
+const CreateTaskSchema = z.object({
+  projectId: z.string().min(1),
+  parentTaskId: z.string().optional(),
+  name: z.string().min(1).max(255),
+  description: z.string().optional(),
+  status: z.string().default('pending'),
+  priority: z.number().int().min(1).max(10).default(5),
+  taskType: z.string().default('general'),
+  instruction: z.string().optional(),
+  inputData: z.record(z.any()).optional(),
+  outputData: z.record(z.any()).optional(),
+  mcpEnabled: z.boolean().default(true),
+  ultrathinkProtocol: z.boolean().default(true),
+  estimatedDurationMinutes: z.number().int().optional(),
+});
+
+const UpdateTaskSchema = CreateTaskSchema.omit({ projectId: true }).partial();
+
 // Upload task definition YAML
 taskRouter.post('/upload/:projectId', async (req: Request, res: Response) => {
   try {
@@ -244,5 +262,205 @@ taskRouter.get('/ready/:projectId', async (req: Request, res: Response) => {
   } catch (error) {
     logger.error('Failed to fetch ready tasks:', error);
     res.status(500).json({ error: 'Failed to fetch ready tasks' });
+  }
+});
+
+// Create new task
+taskRouter.post('/', validateRequest(CreateTaskSchema), async (req: Request, res: Response) => {
+  try {
+    const data = req.body as z.infer<typeof CreateTaskSchema>;
+    
+    // Verify project exists
+    const project = await prisma.project.findUnique({
+      where: { id: data.projectId },
+    });
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // Verify parent task exists if specified
+    if (data.parentTaskId) {
+      const parentTask = await prisma.task.findUnique({
+        where: { id: data.parentTaskId },
+      });
+
+      if (!parentTask) {
+        return res.status(404).json({ error: 'Parent task not found' });
+      }
+    }
+
+    const task = await prisma.task.create({
+      data: {
+        projectId: data.projectId,
+        parentTaskId: data.parentTaskId,
+        name: data.name,
+        description: data.description,
+        status: data.status.toUpperCase(),
+        priority: data.priority,
+        taskType: data.taskType,
+        instruction: data.instruction,
+        inputData: data.inputData ? JSON.stringify(data.inputData) : null,
+        outputData: data.outputData ? JSON.stringify(data.outputData) : null,
+        mcpEnabled: data.mcpEnabled,
+        ultrathinkProtocol: data.ultrathinkProtocol,
+        estimatedDurationMinutes: data.estimatedDurationMinutes,
+      },
+      include: {
+        project: true,
+        parentTask: true,
+      },
+    });
+
+    logger.info('Task created:', { taskId: task.id, projectId: data.projectId });
+    res.status(201).json(task);
+  } catch (error) {
+    logger.error('Failed to create task:', error);
+    res.status(500).json({ error: 'Failed to create task' });
+  }
+});
+
+// Update task
+taskRouter.put('/:id', validateRequest(UpdateTaskSchema), async (req: Request, res: Response) => {
+  try {
+    const data = req.body as z.infer<typeof UpdateTaskSchema>;
+    
+    // Format data for update
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.status !== undefined) updateData.status = data.status.toUpperCase();
+    if (data.priority !== undefined) updateData.priority = data.priority;
+    if (data.taskType !== undefined) updateData.taskType = data.taskType;
+    if (data.instruction !== undefined) updateData.instruction = data.instruction;
+    if (data.inputData !== undefined) updateData.inputData = JSON.stringify(data.inputData);
+    if (data.outputData !== undefined) updateData.outputData = JSON.stringify(data.outputData);
+    if (data.mcpEnabled !== undefined) updateData.mcpEnabled = data.mcpEnabled;
+    if (data.ultrathinkProtocol !== undefined) updateData.ultrathinkProtocol = data.ultrathinkProtocol;
+    if (data.estimatedDurationMinutes !== undefined) updateData.estimatedDurationMinutes = data.estimatedDurationMinutes;
+
+    const task = await prisma.task.update({
+      where: { id: req.params.id },
+      data: updateData,
+      include: {
+        project: true,
+        dependencies: {
+          include: {
+            dependencyTask: true,
+          },
+        },
+      },
+    });
+
+    logger.info('Task updated:', { taskId: task.id });
+    res.json(task);
+  } catch (error) {
+    logger.error('Failed to update task:', error);
+    res.status(500).json({ error: 'Failed to update task' });
+  }
+});
+
+// Delete task
+taskRouter.delete('/:id', async (req: Request, res: Response) => {
+  try {
+    // Check if task has child tasks
+    const childTaskCount = await prisma.task.count({
+      where: { parentTaskId: req.params.id },
+    });
+
+    if (childTaskCount > 0) {
+      return res.status(400).json({ 
+        error: 'Cannot delete task with child tasks. Please delete child tasks first.' 
+      });
+    }
+
+    // Delete dependencies first
+    await prisma.taskDependency.deleteMany({
+      where: {
+        OR: [
+          { taskId: req.params.id },
+          { dependencyTaskId: req.params.id },
+        ],
+      },
+    });
+
+    // Delete the task
+    await prisma.task.delete({
+      where: { id: req.params.id },
+    });
+
+    logger.info('Task deleted:', { taskId: req.params.id });
+    res.status(204).send();
+  } catch (error) {
+    logger.error('Failed to delete task:', error);
+    res.status(500).json({ error: 'Failed to delete task' });
+  }
+});
+
+// Add task dependency
+taskRouter.post('/:id/dependencies', async (req: Request, res: Response) => {
+  try {
+    const { dependencyTaskId, dependencyType = 'depends_on' } = req.body;
+
+    if (!dependencyTaskId) {
+      return res.status(400).json({ error: 'dependencyTaskId is required' });
+    }
+
+    // Verify both tasks exist
+    const [task, dependencyTask] = await Promise.all([
+      prisma.task.findUnique({ where: { id: req.params.id } }),
+      prisma.task.findUnique({ where: { id: dependencyTaskId } }),
+    ]);
+
+    if (!task || !dependencyTask) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    // Check if dependency already exists
+    const existing = await prisma.taskDependency.findFirst({
+      where: {
+        taskId: req.params.id,
+        dependencyTaskId,
+      },
+    });
+
+    if (existing) {
+      return res.status(400).json({ error: 'Dependency already exists' });
+    }
+
+    const dependency = await prisma.taskDependency.create({
+      data: {
+        taskId: req.params.id,
+        dependencyTaskId,
+        dependencyType,
+      },
+      include: {
+        task: true,
+        dependencyTask: true,
+      },
+    });
+
+    logger.info('Task dependency created:', { taskId: req.params.id, dependencyTaskId });
+    res.status(201).json(dependency);
+  } catch (error) {
+    logger.error('Failed to create task dependency:', error);
+    res.status(500).json({ error: 'Failed to create task dependency' });
+  }
+});
+
+// Remove task dependency
+taskRouter.delete('/:id/dependencies/:depId', async (req: Request, res: Response) => {
+  try {
+    await prisma.taskDependency.delete({
+      where: {
+        id: req.params.depId,
+      },
+    });
+
+    logger.info('Task dependency removed:', { taskId: req.params.id, dependencyId: req.params.depId });
+    res.status(204).send();
+  } catch (error) {
+    logger.error('Failed to remove task dependency:', error);
+    res.status(500).json({ error: 'Failed to remove task dependency' });
   }
 });

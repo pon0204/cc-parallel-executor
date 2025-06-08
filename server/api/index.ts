@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { projectRouter } from './projects.js';
 import { taskRouter } from './tasks.js';
 import { ccRouter } from './cc.js';
+import { requirementRouter } from './requirements.js';
 
 export const apiRouter = Router();
 
@@ -9,6 +10,7 @@ export const apiRouter = Router();
 apiRouter.use('/projects', projectRouter);
 apiRouter.use('/tasks', taskRouter);
 apiRouter.use('/cc', ccRouter);
+apiRouter.use('/requirements', requirementRouter);
 
 // API root endpoint
 apiRouter.get('/', (req, res) => {
@@ -19,6 +21,7 @@ apiRouter.get('/', (req, res) => {
       projects: '/api/projects',
       tasks: '/api/tasks',
       cc: '/api/cc',
+      requirements: '/api/requirements',
     },
   });
 });
