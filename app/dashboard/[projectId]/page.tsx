@@ -10,9 +10,12 @@ import { useProject, useProjectTasks } from '@/lib/hooks/useProjects';
 import { useProjectStore } from '@/lib/stores/project.store';
 import { TerminalTabs } from '@/components/terminal/terminal-tabs';
 import { TaskUploadDialog } from '@/components/dashboard/task-upload-dialog';
-import { api } from '@/lib/api/client';
+import { ChildCCNotification } from '@/components/notifications/child-cc-notification';
+import { ChildCCStatusBadge } from '@/components/notifications/child-cc-status-badge';
+import type { ClaudeState } from '@/components/notifications/child-cc-status-badge';
 import { toast } from '@/components/ui/use-toast';
-import io, { Socket } from 'socket.io-client';
+import io from 'socket.io-client';
+import type { Socket } from 'socket.io-client';
 
 export default function ProjectDashboardPage() {
   const params = useParams();
@@ -31,6 +34,14 @@ export default function ProjectDashboardPage() {
   const [isStartingChildCC, setIsStartingChildCC] = useState(false);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [claudeStarted, setClaudeStarted] = useState(false);
+  const [childCCStates, setChildCCStates] = useState<Record<string, ClaudeState>>({});
+  const [focusedTerminalId, setFocusedTerminalId] = useState<string | null>(null);
+
+  // 子CCターミナルにフォーカスを当てる関数
+  const handleFocusTerminal = (instanceId: string) => {
+    setFocusedTerminalId(instanceId);
+    // タブを自動的に切り替える場合はここに実装
+  };
 
   useEffect(() => {
     if (project) {
@@ -44,7 +55,22 @@ export default function ProjectDashboardPage() {
       console.log('Connected to CC server, socket ID:', socket.id);
     });
 
-    socket.on('cc:parent-ready', (data: { instanceId: string; sessionId?: string; project?: any }) => {
+    // 子CC状態変化の監視
+    socket.on('claude:waiting-for-input', (data) => {
+      setChildCCStates(prev => ({
+        ...prev,
+        [data.instanceId]: 'waiting_input' as ClaudeState
+      }));
+    });
+
+    socket.on('claude:response-complete', (data) => {
+      setChildCCStates(prev => ({
+        ...prev,
+        [data.instanceId]: 'idle' as ClaudeState
+      }));
+    });
+
+    socket.on('cc:parent-ready', (data: { instanceId: string; sessionId?: string; project?: unknown }) => {
       console.log('Parent CC ready:', data);
       
       // Create and store parent CC instance
@@ -54,7 +80,10 @@ export default function ProjectDashboardPage() {
         type: 'parent' as const,
         status: 'running' as const,
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        worktreePath: null,
+        parentInstanceId: null,
+        processId: null,
+        socketId: socket.id || null,
         lastHeartbeat: new Date().toISOString(),
       };
       setParentCC(parentInstance);
@@ -135,19 +164,21 @@ export default function ProjectDashboardPage() {
       setIsStartingChildCC(false);
     });
 
-    socket.on('cc:child-ready', (data: { instanceId: string; task?: any; worktreePath?: string }) => {
+    socket.on('cc:child-ready', (data: { instanceId: string; task?: unknown; worktreePath?: string }) => {
       console.log('Child CC ready:', data);
       
       // Create and store child CC instance
       const childInstance = {
         id: data.instanceId,
-        name: `Child CC - ${data.task?.name || 'Task'}`,
+        name: `Child CC - ${(data.task as {name?: string})?.name || 'Task'}`,
         type: 'child' as const,
         status: 'running' as const,
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        worktreePath: data.worktreePath || null,
+        parentInstanceId: parentCC?.id || null,
+        processId: null,
+        socketId: socket.id || null,
         lastHeartbeat: new Date().toISOString(),
-        worktreePath: data.worktreePath,
       };
       addChildCC(childInstance);
       
@@ -194,7 +225,7 @@ export default function ProjectDashboardPage() {
           console.log('Socket connected successfully');
           resolve();
         };
-        const onConnectError = (error: any) => {
+        const onConnectError = (error: unknown) => {
           console.error('Socket connection error:', error);
           reject(error);
         };
@@ -277,7 +308,7 @@ export default function ProjectDashboardPage() {
         }
 
         // Select the first pending task
-        const availableTask = tasks.find((task: any) => task.status === 'pending');
+        const availableTask = tasks.find((task: {status: string}) => task.status === 'pending');
         if (!availableTask) {
           toast({
             title: '実行可能なタスクがありません',
@@ -296,14 +327,14 @@ export default function ProjectDashboardPage() {
           
           await new Promise<void>((resolve, reject) => {
             const onConnect = () => resolve();
-            const onConnectError = (error: any) => reject(error);
+            const onConnectError = (error: unknown) => reject(error);
             
-            currentSocket.on('connect', onConnect);
-            currentSocket.on('connect_error', onConnectError);
+            currentSocket?.on('connect', onConnect);
+            currentSocket?.on('connect_error', onConnectError);
             
             setTimeout(() => {
-              currentSocket.off('connect', onConnect);
-              currentSocket.off('connect_error', onConnectError);
+              currentSocket?.off('connect', onConnect);
+              currentSocket?.off('connect_error', onConnectError);
               reject(new Error('Socket connection timeout'));
             }, 5000);
           });
@@ -314,8 +345,8 @@ export default function ProjectDashboardPage() {
           taskId: availableTask.id,
           instruction: availableTask.instruction || `タスク「${availableTask.name}」を実行してください。`,
         };
-
-        console.log('Starting child CC with task:', availableTask.name);
+        
+        currentSocket.emit('cc:create-child', childCCData);
       } catch (fetchError) {
         console.error('Failed to fetch tasks:', fetchError);
         
@@ -338,14 +369,14 @@ worktreeで独立した環境で作業を行い、完了後は結果を報告し
           
           await new Promise<void>((resolve, reject) => {
             const onConnect = () => resolve();
-            const onConnectError = (error: any) => reject(error);
+            const onConnectError = (error: unknown) => reject(error);
             
-            currentSocket.on('connect', onConnect);
-            currentSocket.on('connect_error', onConnectError);
+            currentSocket?.on('connect', onConnect);
+            currentSocket?.on('connect_error', onConnectError);
             
             setTimeout(() => {
-              currentSocket.off('connect', onConnect);
-              currentSocket.off('connect_error', onConnectError);
+              currentSocket?.off('connect', onConnect);
+              currentSocket?.off('connect_error', onConnectError);
               reject(new Error('Socket connection timeout'));
             }, 5000);
           });
@@ -356,10 +387,9 @@ worktreeで独立した環境で作業を行い、完了後は結果を報告し
           taskId: `demo-task-${Date.now()}`, // Demo task ID
           instruction: sampleInstruction,
         };
+        
+        currentSocket.emit('cc:create-child', childCCData);
       }
-
-      console.log('Starting child CC with data:', childCCData);
-      currentSocket.emit('cc:create-child', childCCData);
 
       toast({
         title: '子CC起動中...',
@@ -484,7 +514,12 @@ worktreeで独立した環境で作業を行い、完了後は結果を報告し
           </div>
 
           <TabsContent value="terminal" className="flex-1">
-            <TerminalTabs projectId={project.id} parentSocket={socket} />
+            <TerminalTabs 
+              projectId={project.id} 
+              parentSocket={socket}
+              focusedTerminalId={focusedTerminalId}
+              onTerminalFocus={setFocusedTerminalId}
+            />
           </TabsContent>
 
           <TabsContent value="overview" className="space-y-6">
@@ -564,6 +599,12 @@ worktreeで独立した環境で作業を行い、完了後は結果を報告し
                           <Badge variant="warning">
                             優先度: {task.priority}
                           </Badge>
+                          {task.assignedTo && childCCStates[task.assignedTo] && (
+                            <ChildCCStatusBadge 
+                              state={childCCStates[task.assignedTo]} 
+                              showIcon={true}
+                            />
+                          )}
                         </div>
                       </div>
                       {task.description && (
@@ -587,6 +628,12 @@ worktreeで独立した環境で作業を行い、完了後は結果を報告し
         open={isUploadOpen}
         onOpenChange={setIsUploadOpen}
         projectId={project.id}
+      />
+
+      {/* Child CC Notifications */}
+      <ChildCCNotification 
+        socket={socket} 
+        onFocusTerminal={handleFocusTerminal}
       />
     </div>
   );

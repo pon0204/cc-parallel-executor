@@ -2,12 +2,15 @@ import type { Server as SocketIOServer, Socket } from 'socket.io';
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import { logger } from '../utils/logger.js';
 import { platform } from 'os';
+import { ClaudeOutputAnalyzer, ClaudeState } from './claude-output-analyzer.js';
 
 interface TerminalSession {
   proc: ChildProcessWithoutNullStreams;
   socketId: string;
   sessionId: string;
   workdir?: string;
+  ccInstanceId?: string;
+  analyzer?: ClaudeOutputAnalyzer;
 }
 
 export class TerminalService {
@@ -75,14 +78,51 @@ export class TerminalService {
           socketId: socket.id,
           sessionId,
           workdir: cwd,
+          ccInstanceId: options?.env?.CC_INSTANCE_ID,
         };
+
+        // Claude Output Analyzerを初期化（CCインスタンスの場合のみ）
+        if (options?.env?.CC_INSTANCE_ID) {
+          session.analyzer = new ClaudeOutputAnalyzer(options.env.CC_INSTANCE_ID, {
+            idleTimeoutMs: 3000,
+            checkIntervalMs: 500
+          });
+
+          // 状態変化のハンドラー
+          session.analyzer.start((event) => {
+            logger.info('Claude state changed:', event);
+
+            // 状態に応じてイベントを発行
+            if (event.to === ClaudeState.WAITING_INPUT) {
+              socket.emit('claude:waiting-for-input', {
+                instanceId: event.instanceId,
+                timestamp: event.timestamp,
+                context: session.analyzer?.getLastOutput(500)
+              });
+            } else if (event.from === ClaudeState.RESPONDING && event.to === ClaudeState.IDLE) {
+              const actionCheck = session.analyzer?.detectActionNeeded();
+              socket.emit('claude:response-complete', {
+                instanceId: event.instanceId,
+                timestamp: event.timestamp,
+                actionNeeded: actionCheck,
+                context: session.analyzer?.getLastOutput(500)
+              });
+            }
+          });
+        }
 
         this.sessions.set(sessionId, session);
         this.socketToSession.set(socket.id, sessionId);
 
         // Handle stdout
         proc.stdout.on('data', (data) => {
-          socket.emit('output', data.toString());
+          const output = data.toString();
+          socket.emit('output', output);
+
+          // Analyzerに出力を送信
+          if (session.analyzer) {
+            session.analyzer.processOutput(output);
+          }
         });
 
         // Handle stderr
@@ -93,6 +133,12 @@ export class TerminalService {
         // Handle exit
         proc.on('exit', (code, signal) => {
           logger.info('Terminal exited:', { sessionId, code, signal });
+          
+          // Analyzerをクリーンアップ
+          if (session.analyzer) {
+            session.analyzer.stop();
+          }
+          
           socket.emit('session-closed', sessionId);
           this.sessions.delete(sessionId);
           this.socketToSession.delete(socket.id);
@@ -194,6 +240,11 @@ export class TerminalService {
     const session = this.sessions.get(sessionId);
     if (session) {
       try {
+        // Analyzerをクリーンアップ
+        if (session.analyzer) {
+          session.analyzer.stop();
+        }
+        
         session.proc.kill('SIGTERM');
         this.sessions.delete(sessionId);
         this.socketToSession.delete(socketId);
@@ -211,5 +262,19 @@ export class TerminalService {
 
   getAllSessions(): TerminalSession[] {
     return Array.from(this.sessions.values());
+  }
+
+  // Claude状態を取得
+  getClaudeState(socketId: string): ClaudeState | undefined {
+    const session = this.getSession(socketId);
+    return session?.analyzer?.getState();
+  }
+
+  // インスタンスIDで状態を取得
+  getClaudeStateByInstanceId(instanceId: string): ClaudeState | undefined {
+    const session = Array.from(this.sessions.values()).find(
+      s => s.ccInstanceId === instanceId
+    );
+    return session?.analyzer?.getState();
   }
 }

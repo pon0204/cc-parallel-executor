@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import io, { Socket } from 'socket.io-client';
+import io from 'socket.io-client';
+import type { Socket } from 'socket.io-client';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
@@ -38,7 +39,6 @@ export function SimpleTerminal({ onConnected, onDisconnected }: SimpleTerminalPr
         background: '#000000',
         foreground: '#ffffff',
         cursor: '#ffffff',
-        selection: '#ffffff40',
       },
       rows: 24,
       cols: 80,

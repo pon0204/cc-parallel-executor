@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { io, Socket } from 'socket.io-client';
+import { io } from 'socket.io-client';
+import type { Socket } from 'socket.io-client';
 import '@xterm/xterm/css/xterm.css';
 
 interface CCTerminalProps {
@@ -19,7 +20,7 @@ interface CCTerminalProps {
 export function CCTerminal({ instanceId, type, socketUrl, existingSocket, onReady, onExit }: CCTerminalProps) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const [terminal, setTerminal] = useState<Terminal | null>(null);
-  const [socket, setSocket] = useState<Socket | null>(null);
+  const [_socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [sessionInitialized, setSessionInitialized] = useState(false);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -161,11 +162,11 @@ export function CCTerminal({ instanceId, type, socketUrl, existingSocket, onRead
     });
 
     // CC-specific events
-    socketInstance.on('cc:parent-ready', ({ project }: any) => {
+    socketInstance.on('cc:parent-ready', ({ project }: {project: unknown}) => {
       console.log('Parent CC ready for project:', project);
     });
 
-    socketInstance.on('cc:child-ready', ({ task }: any) => {
+    socketInstance.on('cc:child-ready', ({ task }: {task: unknown}) => {
       console.log('Child CC ready for task:', task);
     });
 

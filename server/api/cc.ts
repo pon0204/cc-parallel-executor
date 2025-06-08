@@ -183,10 +183,11 @@ ccRouter.post('/child', validateRequest(CreateChildCCSchema), async (req: Reques
     });
 
     // Start actual child CC process (this would trigger git worktree creation and claude startup)
-    const ccService = await import('../services/cc.service.js');
+    const ccModule = await import('../services/cc.service.js');
+    const ccService = new ccModule.CCService((global as any).io);
     
     // This will run asynchronously and send progress via SSE if sessionId is provided
-    ccService.default.startChildCC({
+    ccService.startChildCC({
       instanceId: instance.id,
       parentInstanceId,
       taskId,

@@ -1,5 +1,6 @@
 // Next.js API Route Proxy
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
 const API_SERVER = 'http://localhost:8081';
 

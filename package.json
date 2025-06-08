@@ -5,10 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "bun run dev:all",
-    "dev:all": "concurrently --names \"NEXT,SERVER,MCP\" --prefix-colors \"blue,green,yellow\" \"bun run dev:next\" \"bun run dev:server\" \"bun run dev:mcp\"",
+    "dev:all": "concurrently --names \"NEXT,SERVER,MCP\" --prefix-colors \"blue,green,yellow\" \"bun run dev:next\" \"bun run dev:server\"",
     "dev:next": "next dev -p 8080",
     "dev:server": "bun --watch server/index.ts",
-    "dev:mcp": "cd mcp-server && bun run dev",
     "build": "bun run build:all",
     "build:all": "next build && bun run build:server && cd mcp-server && bun run build",
     "build:server": "bun build server/index.ts --outdir dist/server --target node",

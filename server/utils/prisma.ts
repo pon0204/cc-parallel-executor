@@ -30,25 +30,33 @@ if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;
 }
 
+// Type-safe event handlers
+const prismWithEvents = prisma as PrismaClient & {
+  $on(event: 'query', cb: (e: any) => void): void;
+  $on(event: 'error', cb: (e: any) => void): void;
+  $on(event: 'info', cb: (e: any) => void): void;
+  $on(event: 'warn', cb: (e: any) => void): void;
+};
+
 // Logging configuration
-prisma.$on('query', (e) => {
-  if (process.env.LOG_LEVEL === 'debug') {
+if (process.env.LOG_LEVEL === 'debug') {
+  prismWithEvents.$on('query', (e) => {
     logger.debug('Query:', {
       query: e.query,
       params: e.params,
       duration: e.duration,
     });
-  }
-});
+  });
+}
 
-prisma.$on('error', (e) => {
+prismWithEvents.$on('error', (e) => {
   logger.error('Prisma error:', e);
 });
 
-prisma.$on('info', (e) => {
+prismWithEvents.$on('info', (e) => {
   logger.info('Prisma info:', e);
 });
 
-prisma.$on('warn', (e) => {
+prismWithEvents.$on('warn', (e) => {
   logger.warn('Prisma warning:', e);
 });

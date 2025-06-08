@@ -8,18 +8,26 @@ import { Grid2X2, Maximize2, Terminal } from 'lucide-react';
 import { CCTerminal } from './terminal-wrapper';
 import { useProjectStore } from '@/lib/stores/project.store';
 import type { Socket } from 'socket.io-client';
-import { cn } from '@/lib/utils';
 
 interface TerminalTabsProps {
   projectId: string;
   parentSocket?: Socket | null;
+  focusedTerminalId?: string | null;
+  onTerminalFocus?: (instanceId: string) => void;
 }
 
-export function TerminalTabs({ projectId, parentSocket }: TerminalTabsProps) {
+export function TerminalTabs({ parentSocket, focusedTerminalId }: TerminalTabsProps) {
   const parentCC = useProjectStore((state) => state.parentCC);
   const childCCs = useProjectStore((state) => state.childCCs);
   const [activeTab, setActiveTab] = useState('parent');
   const [viewMode, setViewMode] = useState<'tabs' | 'grid'>('tabs');
+
+  // フォーカスされたターミナルIDが変更されたらタブを切り替える
+  useEffect(() => {
+    if (focusedTerminalId) {
+      setActiveTab(focusedTerminalId);
+    }
+  }, [focusedTerminalId]);
 
   // 親CCがない場合のメッセージ
   if (!parentCC) {

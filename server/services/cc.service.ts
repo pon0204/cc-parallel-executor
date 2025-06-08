@@ -4,6 +4,7 @@ import { logger } from '../utils/logger.js';
 import { prisma } from '../utils/prisma.js';
 import { TerminalService } from './terminal.service.js';
 import { WorktreeService } from './worktree.service.js';
+import { ClaudeState } from './claude-output-analyzer.js';
 import path from 'path';
 
 interface CCSession {
@@ -230,14 +231,17 @@ export class CCService {
         worktreePath,
       });
 
+      // 子CC監視のセットアップ
+      this.setupChildCCMonitoring(socket, instance.id);
+
       // Log task start
       await prisma.taskLog.create({
         data: {
           taskId: task.id,
           ccInstanceId: instance.id,
           logLevel: 'info',
+          phase: 'start',
           message: 'Task started',
-          metadata: JSON.stringify({ worktreePath }),
         },
       });
     } catch (error) {
@@ -276,6 +280,7 @@ export class CCService {
             taskId: session.taskId,
             ccInstanceId: session.instanceId,
             logLevel: 'info',
+            phase: 'complete',
             message: 'Task completed',
           },
         });
@@ -297,6 +302,73 @@ export class CCService {
     } catch (error) {
       logger.error('Failed to destroy CC:', error);
     }
+  }
+
+  /**
+   * 子CCの状態を監視し、親やダッシュボードに通知
+   */
+  setupChildCCMonitoring(socket: Socket, instanceId: string) {
+    // Claude状態変化イベントをリッスン
+    socket.on('claude:waiting-for-input', async (data) => {
+      logger.info('Child CC waiting for input:', data);
+      
+      // 親に通知
+      const session = this.sessions.get(socket.id);
+      if (session && session.type === 'child') {
+        const parentSession = Array.from(this.sessions.values()).find(
+          s => s.type === 'parent' && s.projectId === session.projectId
+        );
+        
+        if (parentSession) {
+          this.io.to(parentSession.socketId).emit('child-cc:waiting-for-input', {
+            childInstanceId: instanceId,
+            taskId: session.taskId,
+            context: data.context,
+            timestamp: data.timestamp
+          });
+        }
+      }
+      
+      // ダッシュボードに通知（ブロードキャスト）
+      this.io.emit('dashboard:child-cc-needs-input', {
+        instanceId,
+        taskId: session?.taskId,
+        context: data.context
+      });
+    });
+
+    socket.on('claude:response-complete', async (data) => {
+      logger.info('Child CC response complete:', data);
+      
+      const session = this.sessions.get(socket.id);
+      if (session && session.type === 'child') {
+        // アクションが必要かチェック
+        if (data.actionNeeded?.needed) {
+          // 親に通知
+          const parentSession = Array.from(this.sessions.values()).find(
+            s => s.type === 'parent' && s.projectId === session.projectId
+          );
+          
+          if (parentSession) {
+            this.io.to(parentSession.socketId).emit('child-cc:action-required', {
+              childInstanceId: instanceId,
+              taskId: session.taskId,
+              actionType: data.actionNeeded.type,
+              confidence: data.actionNeeded.confidence,
+              context: data.context
+            });
+          }
+          
+          // ダッシュボードに通知
+          this.io.emit('dashboard:child-cc-action-required', {
+            instanceId,
+            taskId: session.taskId,
+            actionType: data.actionNeeded.type,
+            context: data.context
+          });
+        }
+      }
+    });
   }
 
   private prepareParentContext(project: any): string {
@@ -539,6 +611,23 @@ ${message}
       throw error;
     }
   }
+  /**
+   * 子CCの現在の状態を取得
+   */
+  getChildCCState(instanceId: string): ClaudeState | undefined {
+    return this.terminalService.getClaudeStateByInstanceId(instanceId);
+  }
+
+  /**
+   * すべての子CCの状態を取得
+   */
+  getAllChildCCStates(): Array<{instanceId: string, state: ClaudeState}> {
+    return Array.from(this.sessions.values())
+      .filter(s => s.type === 'child')
+      .map(s => ({
+        instanceId: s.instanceId,
+        state: this.terminalService.getClaudeStateByInstanceId(s.instanceId) || ClaudeState.IDLE
+      }));
+  }
 }
 
-export default new CCService(global.io);

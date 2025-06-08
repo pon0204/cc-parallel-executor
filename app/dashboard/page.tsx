@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
-import { Plus, FolderOpen, Activity, Clock } from 'lucide-react';
+import { Plus, FolderOpen, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useProjects } from '@/lib/hooks/useProjects';
