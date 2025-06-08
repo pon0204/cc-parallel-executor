@@ -92,10 +92,6 @@ export const TaskSchema = z.object({
   outputData: z.string().nullable(),
   instruction: z.string().nullable(),
   worktreePath: z.string().nullable(),
-  mcpEnabled: z.boolean().optional(),
-  ultrathinkProtocol: z.boolean().optional(),
-  estimatedDurationMinutes: z.number().nullable().optional(),
-  actualDurationMinutes: z.number().nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
   queuedAt: z.string().nullable().optional(),
@@ -114,9 +110,6 @@ export const CreateTaskSchema = z.object({
   priority: z.number().int().min(1).max(10).default(5),
   status: z.string().default('pending'),
   instruction: z.string().optional(),
-  estimatedDurationMinutes: z.number().int().optional(),
-  mcpEnabled: z.boolean().default(true),
-  ultrathinkProtocol: z.boolean().default(true),
 });
 
 export type CreateTaskInput = z.infer<typeof CreateTaskSchema>;

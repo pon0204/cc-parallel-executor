@@ -1,6 +1,7 @@
 'use client';
 
 import { FitAddon } from '@xterm/addon-fit';
+import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal } from '@xterm/xterm';
 import { useEffect, useRef, useState } from 'react';
@@ -31,14 +32,11 @@ export function CCTerminal({
   const [isConnected, setIsConnected] = useState(false);
   const [sessionInitialized, setSessionInitialized] = useState(false);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const dataBufferRef = useRef<string>('');
-  const lastLineRef = useRef<string>('');
-  const isProcessingRef = useRef<boolean>(false);
 
   useEffect(() => {
     if (!terminalRef.current) return;
 
-    // Create terminal instance with better Unicode and control character support
+    // Create terminal instance with settings optimized for Claude Code
     const term = new Terminal({
       cursorBlink: true,
       fontSize: 14,
@@ -64,13 +62,13 @@ export function CCTerminal({
         brightCyan: '#7dcfff',
         brightWhite: '#c0caf5',
       },
-      // インタラクティブな表示をサポート
-      convertEol: false, // Disable automatic EOL conversion to handle Claude's output manually
+      // xterm settings for Claude Code compatibility
+      convertEol: true,
       scrollback: 10000,
       allowProposedApi: true,
-      // Better handling of Claude's interactive UI
+      allowTransparency: false,
+      drawBoldTextInBrightColors: true,
       rendererType: 'canvas',
-      windowsMode: false,
     });
 
     // Add addons
@@ -80,6 +78,11 @@ export function CCTerminal({
 
     const webLinksAddon = new WebLinksAddon();
     term.loadAddon(webLinksAddon);
+    
+    // Unicode addon for better character support
+    const unicodeAddon = new Unicode11Addon();
+    term.loadAddon(unicodeAddon);
+    unicodeAddon.activate(term);
 
     // Open terminal
     term.open(terminalRef.current);
@@ -119,10 +122,10 @@ export function CCTerminal({
     socketInstance.on('connect', () => {
       setIsConnected(true);
 
-      // Create new terminal session
+      // Create new terminal session with larger size for Claude Code
       socketInstance.emit('create-session', {
-        cols: 120,
-        rows: 30,
+        cols: term.cols || 120,
+        rows: term.rows || 40,
         env: {
           CC_INSTANCE_ID: instanceId,
           CC_TYPE: type,
@@ -134,50 +137,13 @@ export function CCTerminal({
       setIsConnected(false);
     });
 
-    // Terminal data events - with Claude Code output filtering
-    const processClaudeOutput = (data: string) => {
-      // Buffer incoming data
-      dataBufferRef.current += data;
-      
-      // Process buffered data line by line
-      const lines = dataBufferRef.current.split(/\r?\n/);
-      dataBufferRef.current = lines.pop() || ''; // Keep incomplete line in buffer
-      
-      for (const line of lines) {
-        // Skip repetitive Claude UI elements
-        if (line.match(/^\s*>\s*$/) && lastLineRef.current.match(/^\s*>\s*$/)) {
-          continue; // Skip duplicate empty prompt lines
-        }
-        
-        if (line.includes('? for shortcuts') && lastLineRef.current.includes('? for shortcuts')) {
-          continue; // Skip duplicate shortcut hints
-        }
-        
-        // Skip Claude's spinner/status messages if they're flickering
-        if (line.match(/^\s*(Cooking|Reticulating|Pondering|Analyzing|Computing)\.\.\./i)) {
-          // Clear the previous line if it's a status message
-          if (lastLineRef.current.match(/^\s*(Cooking|Reticulating|Pondering|Analyzing|Computing)\.\.\./i)) {
-            term.write('\r\x1b[K'); // Clear current line
-          }
-        }
-        
-        // Write the line with proper line ending
-        term.write(line + '\r\n');
-        lastLineRef.current = line;
-      }
-      
-      // Write any remaining incomplete data
-      if (dataBufferRef.current) {
-        term.write(dataBufferRef.current);
-      }
-    };
-    
+    // Terminal data events - raw passthrough for Claude Code
     socketInstance.on('data', (data: string) => {
-      processClaudeOutput(data);
+      term.write(data);
     });
 
     socketInstance.on('output', (data: string) => {
-      processClaudeOutput(data);
+      term.write(data);
     });
 
     socketInstance.on('session-created', (data) => {
@@ -221,8 +187,6 @@ export function CCTerminal({
       }
     );
 
-    // CC-specific events (kept for future use)
-
     setSocket(socketInstance);
 
     // Cleanup
@@ -245,14 +209,14 @@ export function CCTerminal({
       className="h-full w-full bg-[#1a1b26] rounded-lg overflow-hidden cursor-text"
       style={{ padding: '8px' }}
     >
-        {!isConnected && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded-lg">
-            <div className="text-center space-y-2">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-              <p className="text-sm text-muted-foreground">接続中...</p>
-            </div>
+      {!isConnected && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded-lg">
+          <div className="text-center space-y-2">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="text-sm text-muted-foreground">接続中...</p>
           </div>
-        )}
+        </div>
+      )}
     </div>
   );
 }

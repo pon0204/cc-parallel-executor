@@ -27,6 +27,8 @@ interface TaskDialogProps {
   task?: Task;
   onSave: (task: Partial<Task>) => Promise<void>;
   trigger?: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const taskTypes = [
@@ -48,8 +50,17 @@ const statusOptions = [
   { value: 'failed', label: '失敗' },
 ];
 
-export function TaskDialog({ projectId, task, onSave, trigger }: TaskDialogProps) {
-  const [open, setOpen] = useState(false);
+export function TaskDialog({
+  projectId,
+  task,
+  onSave,
+  trigger,
+  open: controlledOpen,
+  onOpenChange,
+}: TaskDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = onOpenChange || setInternalOpen;
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -58,9 +69,6 @@ export function TaskDialog({ projectId, task, onSave, trigger }: TaskDialogProps
     priority: 5,
     status: 'pending',
     instruction: '',
-    estimatedDurationMinutes: '',
-    mcpEnabled: true,
-    ultrathinkProtocol: true,
   });
 
   // Reset form when dialog opens/closes or task changes
@@ -73,9 +81,6 @@ export function TaskDialog({ projectId, task, onSave, trigger }: TaskDialogProps
         priority: task.priority,
         status: task.status.toLowerCase(),
         instruction: task.instruction || '',
-        estimatedDurationMinutes: task.estimatedDurationMinutes?.toString() || '',
-        mcpEnabled: task.mcpEnabled ?? true,
-        ultrathinkProtocol: task.ultrathinkProtocol ?? true,
       });
     } else {
       setFormData({
@@ -85,9 +90,6 @@ export function TaskDialog({ projectId, task, onSave, trigger }: TaskDialogProps
         priority: 5,
         status: 'pending',
         instruction: '',
-        estimatedDurationMinutes: '',
-        mcpEnabled: true,
-        ultrathinkProtocol: true,
       });
     }
   }, [task, open]);
@@ -102,9 +104,6 @@ export function TaskDialog({ projectId, task, onSave, trigger }: TaskDialogProps
       const saveData: any = {
         ...formData,
         projectId: task ? undefined : projectId,
-        estimatedDurationMinutes: formData.estimatedDurationMinutes
-          ? Number.parseInt(formData.estimatedDurationMinutes)
-          : undefined,
       };
 
       await onSave(saveData);
@@ -232,59 +231,6 @@ export function TaskDialog({ projectId, task, onSave, trigger }: TaskDialogProps
             />
           </div>
 
-          {/* Estimated Duration */}
-          <div className="space-y-2">
-            <Label htmlFor="estimatedDuration">予想実行時間（分）</Label>
-            <Input
-              id="estimatedDuration"
-              type="number"
-              value={formData.estimatedDurationMinutes}
-              onChange={(e) =>
-                setFormData({ ...formData, estimatedDurationMinutes: e.target.value })
-              }
-              placeholder="例: 30"
-              min="1"
-            />
-          </div>
-
-          {/* MCP and Ultrathink Options */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="mcpEnabled">MCP有効</Label>
-              <Select
-                value={formData.mcpEnabled.toString()}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, mcpEnabled: value === 'true' })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="true">有効</SelectItem>
-                  <SelectItem value="false">無効</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="ultrathinkProtocol">Ultrathinkプロトコル</Label>
-              <Select
-                value={formData.ultrathinkProtocol.toString()}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, ultrathinkProtocol: value === 'true' })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="true">有効</SelectItem>
-                  <SelectItem value="false">無効</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
 
           {/* Actions */}
           <div className="flex justify-end gap-2">

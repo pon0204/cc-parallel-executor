@@ -133,13 +133,6 @@ export function TaskCard({ task, onEdit, onDelete, onStatusChange, onExecute }: 
           </div>
         )}
 
-        {/* Duration info */}
-        {task.estimatedDurationMinutes && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-            <Clock className="h-3 w-3" />
-            <span>予想時間: {task.estimatedDurationMinutes}分</span>
-          </div>
-        )}
 
         {/* Last updated */}
         <div className="flex items-center gap-2 text-xs text-muted-foreground">

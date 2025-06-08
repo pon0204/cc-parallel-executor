@@ -314,19 +314,19 @@ ccRouter.post('/:id/stop', async (req: Request, res: Response) => {
     // Get CCService instance
     const ccService = req.app.get('ccService');
     const io = req.app.get('io');
-    
+
     if (ccService && instance.socketId) {
       // Find the session and destroy it
       const sessions = ccService.getAllSessions();
       const session = sessions.find((s: any) => s.instanceId === instance.id);
-      
+
       if (session) {
         // Emit terminate event to the terminal
         io.to(session.socketId).emit('terminate-cc', {
           instanceId: instance.id,
           reason: 'User requested termination',
         });
-        
+
         // Destroy the CC session
         await ccService.destroyCC(session.socketId);
       }
@@ -342,7 +342,7 @@ ccRouter.post('/:id/stop', async (req: Request, res: Response) => {
     if (instance.assignedTasks?.length > 0) {
       await prisma.task.updateMany({
         where: { assignedTo: instance.id },
-        data: { 
+        data: {
           status: 'failed',
           completedAt: new Date(),
         },

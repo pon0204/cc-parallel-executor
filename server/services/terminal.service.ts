@@ -12,6 +12,7 @@ interface TerminalSession {
   workdir?: string;
   ccInstanceId?: string;
   analyzer?: ClaudeOutputAnalyzer;
+  flushInterval?: NodeJS.Timeout;
 }
 
 export class TerminalService {
@@ -69,13 +70,17 @@ export class TerminalService {
           // Essential PTY environment variables for Claude Code
           TERM: 'xterm-256color',
           COLORTERM: 'truecolor',
-          FORCE_COLOR: '1',
+          FORCE_COLOR: '3', // Maximum color support
           // Shell settings for interactive behavior
           SHELL: shell,
           PS1: '\\[\\033[01;32m\\]\\u@\\h\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w\\[\\033[00m\\]\\$ ',
           // Ink/React compatibility for Claude Code
           CI: undefined, // Remove CI flag that disables interactive mode
           FORCE_INTERACTIVE: '1',
+          // Claude Code specific
+          CLAUDE_TERMINAL: '1',
+          LINES: String(options?.rows || 24),
+          COLUMNS: String(options?.cols || 80),
         },
       });
 
@@ -122,14 +127,41 @@ export class TerminalService {
       this.socketToSession.set(socket.id, sessionId);
 
       // Handle output (node-pty combines stdout and stderr)
+      let outputBuffer = '';
+      let lastEmitTime = Date.now();
+      const EMIT_THROTTLE_MS = 16; // ~60fps
+      
       proc.onData((data: string) => {
-        socket.emit('output', data);
+        // For Claude Code, we need to handle its interactive UI more carefully
+        outputBuffer += data;
+        
+        const now = Date.now();
+        const shouldFlush = now - lastEmitTime >= EMIT_THROTTLE_MS || 
+                          data.includes('\n') || 
+                          data.includes('\r') ||
+                          outputBuffer.length > 1024;
+        
+        if (shouldFlush && outputBuffer) {
+          socket.emit('output', outputBuffer);
+          outputBuffer = '';
+          lastEmitTime = now;
+        }
 
         // Analyzerに出力を送信
         if (session.analyzer) {
           session.analyzer.processOutput(data);
         }
       });
+      
+      // Ensure any remaining buffered data is sent
+      const flushInterval = setInterval(() => {
+        if (outputBuffer) {
+          socket.emit('output', outputBuffer);
+          outputBuffer = '';
+        }
+      }, 100);
+      
+      session.flushInterval = flushInterval;
 
       // Handle exit
       proc.onExit((exitEvent: { exitCode: number; signal?: number }) => {
@@ -142,6 +174,11 @@ export class TerminalService {
         // Analyzerをクリーンアップ
         if (session.analyzer) {
           session.analyzer.stop();
+        }
+        
+        // Clear flush interval
+        if (session.flushInterval) {
+          clearInterval(session.flushInterval);
         }
 
         socket.emit('session-closed', sessionId);
@@ -240,6 +277,11 @@ export class TerminalService {
         // Analyzerをクリーンアップ
         if (session.analyzer) {
           session.analyzer.stop();
+        }
+        
+        // Clear flush interval
+        if (session.flushInterval) {
+          clearInterval(session.flushInterval);
         }
 
         // Use node-pty kill method

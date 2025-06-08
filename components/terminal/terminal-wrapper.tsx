@@ -3,8 +3,9 @@
 import { Loader2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
+// Simple terminal with raw passthrough for Claude Code
 const CCTerminal = dynamic(
-  () => import('./cc-terminal').then((mod) => ({ default: mod.CCTerminal })),
+  () => import('./cc-terminal-simple').then((mod) => ({ default: mod.CCTerminal })),
   {
     ssr: false,
     loading: () => (
@@ -18,4 +19,5 @@ const CCTerminal = dynamic(
   }
 );
 
+// Export only the simple terminal
 export { CCTerminal };

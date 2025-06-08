@@ -28,6 +28,8 @@ interface RequirementDialogProps {
   requirement?: Requirement;
   onSave: (requirement: Partial<Requirement>) => Promise<void>;
   trigger?: ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const requirementTypes = [
@@ -53,8 +55,12 @@ export function RequirementDialog({
   requirement,
   onSave,
   trigger,
+  open: controlledOpen,
+  onOpenChange,
 }: RequirementDialogProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = onOpenChange || setInternalOpen;
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     type: 'functional',

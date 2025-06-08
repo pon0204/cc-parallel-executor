@@ -14,6 +14,13 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from '@/components/ui/use-toast';
 import { type CCInstance, type Project, api } from '@/lib/api/client';
 import { useProjectStore } from '@/lib/stores/project.store';
@@ -45,6 +52,7 @@ export function ActiveCCTerminals({ projectId, project, parentSocket }: ActiveCC
   const [expandedTerminals, setExpandedTerminals] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isStartingCC, setIsStartingCC] = useState(false);
+  const [terminalHeight, setTerminalHeight] = useState<'normal' | 'tall' | 'full'>('tall');
   const queryClient = useQueryClient();
 
   // Get CC instances (temporarily showing all instances until we fix project filtering)
@@ -195,18 +203,33 @@ export function ActiveCCTerminals({ projectId, project, parentSocket }: ActiveCC
           <h2 className="text-xl font-semibold">アクティブなClaude Code</h2>
           <Badge variant="secondary">{activeInstances.length}個</Badge>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
-        >
-          {viewMode === 'grid' ? (
-            <Minimize2 className="h-4 w-4 mr-2" />
-          ) : (
-            <Maximize2 className="h-4 w-4 mr-2" />
-          )}
-          {viewMode === 'grid' ? 'リスト表示' : 'グリッド表示'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Select
+            value={terminalHeight}
+            onValueChange={(value) => setTerminalHeight(value as 'normal' | 'tall' | 'full')}
+          >
+            <SelectTrigger className="w-[120px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="normal">標準</SelectItem>
+              <SelectItem value="tall">縦長</SelectItem>
+              <SelectItem value="full">フルサイズ</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
+          >
+            {viewMode === 'grid' ? (
+              <Minimize2 className="h-4 w-4 mr-2" />
+            ) : (
+              <Maximize2 className="h-4 w-4 mr-2" />
+            )}
+            {viewMode === 'grid' ? 'リスト表示' : 'グリッド表示'}
+          </Button>
+        </div>
       </div>
 
       {/* Parent CC Instances */}
@@ -229,6 +252,7 @@ export function ActiveCCTerminals({ projectId, project, parentSocket }: ActiveCC
                 getStatusColor={getStatusColor}
                 getStatusIcon={getStatusIcon}
                 viewMode={viewMode}
+                terminalHeightSetting={terminalHeight}
               />
             ))}
           </div>
@@ -258,6 +282,7 @@ export function ActiveCCTerminals({ projectId, project, parentSocket }: ActiveCC
                 getStatusColor={getStatusColor}
                 getStatusIcon={getStatusIcon}
                 viewMode={viewMode}
+                terminalHeightSetting={terminalHeight}
               />
             ))}
           </div>
@@ -275,6 +300,7 @@ interface TerminalCardProps {
   getStatusColor: (status: string) => string;
   getStatusIcon: (status: string) => React.ReactNode;
   viewMode: 'grid' | 'list';
+  terminalHeightSetting: 'normal' | 'tall' | 'full';
 }
 
 function TerminalCard({
@@ -285,12 +311,39 @@ function TerminalCard({
   getStatusColor,
   getStatusIcon,
   viewMode,
+  terminalHeightSetting,
 }: TerminalCardProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const queryClient = useQueryClient();
-  
-  const terminalHeight =
-    viewMode === 'grid' ? (isExpanded ? 'h-96' : 'h-48') : isExpanded ? 'h-80' : 'h-32';
+
+  const getTerminalHeight = () => {
+    if (viewMode === 'list') {
+      return isExpanded ? 'h-[600px]' : 'h-32';
+    }
+
+    // グリッドビューの高さ設定
+    if (isExpanded) {
+      switch (terminalHeightSetting) {
+        case 'normal':
+          return 'h-96'; // 384px
+        case 'tall':
+          return 'h-[800px]'; // 800px（元の2倍以上）
+        case 'full':
+          return 'h-[1000px]'; // 1000px
+      }
+    } else {
+      switch (terminalHeightSetting) {
+        case 'normal':
+          return 'h-48'; // 192px
+        case 'tall':
+          return 'h-64'; // 256px
+        case 'full':
+          return 'h-80'; // 320px
+      }
+    }
+  };
+
+  const terminalHeight = getTerminalHeight();
 
   return (
     <Card className="overflow-hidden">
@@ -335,7 +388,7 @@ function TerminalCard({
           />
         </div>
       </CardContent>
-      
+
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>

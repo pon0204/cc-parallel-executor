@@ -1,15 +1,13 @@
 'use client';
 
 import { ActiveCCTerminals } from '@/components/dashboard/active-cc-terminals';
-import { RequirementCard } from '@/components/dashboard/requirement-card';
 import { RequirementDialog } from '@/components/dashboard/requirement-dialog';
-import { TaskCard } from '@/components/dashboard/task-card';
+import { RequirementTable } from '@/components/dashboard/requirement-table';
 import { TaskDialog } from '@/components/dashboard/task-dialog';
-import { TaskUploadDialog } from '@/components/dashboard/task-upload-dialog';
+import { TaskTable } from '@/components/dashboard/task-table';
 import { ChildCCNotification } from '@/components/notifications/child-cc-notification';
 import { ChildCCStatusBadge } from '@/components/notifications/child-cc-status-badge';
 import type { ClaudeState } from '@/components/notifications/child-cc-status-badge';
-import { TerminalTabs } from '@/components/terminal/terminal-tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -23,10 +21,7 @@ import {
   FileText,
   FolderOpen,
   ListTodo,
-  Play,
   Plus,
-  Settings,
-  Upload,
 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -45,11 +40,8 @@ export default function ProjectDashboardPage() {
   const setParentCC = useProjectStore((state) => state.setParentCC);
   const addChildCC = useProjectStore((state) => state.addChildCC);
 
-  const [isUploadOpen, setIsUploadOpen] = useState(false);
-  const [isStartingCC, setIsStartingCC] = useState(false);
   const [isStartingChildCC, setIsStartingChildCC] = useState(false);
   const [socket, setSocket] = useState<Socket | null>(null);
-  const [claudeStarted, setClaudeStarted] = useState(false);
   const [childCCStates, setChildCCStates] = useState<Record<string, ClaudeState>>({});
   const [focusedTerminalId, setFocusedTerminalId] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState<Task | undefined>();
@@ -212,29 +204,6 @@ export default function ProjectDashboardPage() {
     };
   }, [addChildCC]);
 
-  const handleStartCC = async () => {
-    if (!project) return;
-
-    setIsStartingCC(true);
-    try {
-      const instance = await api.cc.createParent(project.id, 'Main CC Instance');
-      setParentCC(instance);
-      setClaudeStarted(true);
-      toast({
-        title: 'Claude Codeが起動しました',
-        description: 'ターミナルタブでClaude Codeと対話できます',
-      });
-    } catch (error) {
-      console.error('Failed to start CC:', error);
-      toast({
-        title: 'エラー',
-        description: 'Claude Codeの起動に失敗しました',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsStartingCC(false);
-    }
-  };
 
   // Handler functions
   const handleTaskSave = async (taskData: Partial<Task>) => {
@@ -353,16 +322,6 @@ export default function ProjectDashboardPage() {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => setIsUploadOpen(true)}>
-              <Upload className="h-4 w-4 mr-2" />
-              タスク定義をアップロード
-            </Button>
-            <Button onClick={handleStartCC} disabled={isStartingCC || claudeStarted}>
-              <Play className="h-4 w-4 mr-2" />
-              {isStartingCC ? '起動中...' : claudeStarted ? '稼働中' : '親CCを起動'}
-            </Button>
-          </div>
         </div>
       </div>
 
@@ -375,7 +334,6 @@ export default function ProjectDashboardPage() {
           <div className="border-b px-6 py-2">
             <div className="flex items-center justify-between">
               <TabsList>
-                <TabsTrigger value="terminal">ターミナル</TabsTrigger>
                 <TabsTrigger value="overview">概要</TabsTrigger>
                 <TabsTrigger value="tasks">タスク</TabsTrigger>
                 <TabsTrigger value="requirements">要件</TabsTrigger>
@@ -395,124 +353,9 @@ export default function ProjectDashboardPage() {
             </div>
           </div>
 
-          <TabsContent value="terminal" className="flex-1">
-            <TerminalTabs
-              projectId={project.id}
-              parentSocket={socket}
-              focusedTerminalId={focusedTerminalId}
-              onTerminalFocus={setFocusedTerminalId}
-            />
-          </TabsContent>
-
           <TabsContent value="overview" className="p-6 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Project Info */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">プロジェクト情報</h3>
-                <div className="space-y-2 text-sm">
-                  <div>
-                    <span className="text-muted-foreground">ステータス:</span>
-                    <Badge variant="outline" className="ml-2 capitalize">
-                      {project.status}
-                    </Badge>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">作成日:</span>
-                    <span className="ml-2">
-                      {new Date(project.createdAt).toLocaleDateString('ja-JP')}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">更新日:</span>
-                    <span className="ml-2">
-                      {new Date(project.updatedAt).toLocaleDateString('ja-JP')}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Description */}
-              <div className="space-y-4 md:col-span-2">
-                <h3 className="text-lg font-semibold">説明</h3>
-                <p className="text-sm text-muted-foreground">
-                  {project.description || 'プロジェクトの説明はありません'}
-                </p>
-              </div>
-            </div>
-
             {/* Active Claude Code Terminals */}
             <ActiveCCTerminals projectId={project.id} project={project} parentSocket={socket} />
-
-            {/* Quick Overview Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="border rounded-lg p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold">最近のタスク</h3>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      document.querySelector('[data-state="active"][value="tasks"]')?.click()
-                    }
-                  >
-                    すべて表示
-                  </Button>
-                </div>
-                {tasksLoading ? (
-                  <div className="flex justify-center py-4">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                  </div>
-                ) : tasks && tasks.length > 0 ? (
-                  <div className="space-y-2">
-                    {tasks.slice(0, 3).map((task) => (
-                      <div
-                        key={task.id}
-                        className="flex items-center justify-between p-2 border rounded"
-                      >
-                        <span className="text-sm font-medium">{task.name}</span>
-                        <Badge variant="outline">{task.status}</Badge>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">タスクがありません</p>
-                )}
-              </div>
-
-              <div className="border rounded-lg p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold">最近の要件</h3>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      document.querySelector('[data-state="active"][value="requirements"]')?.click()
-                    }
-                  >
-                    すべて表示
-                  </Button>
-                </div>
-                {requirementsLoading ? (
-                  <div className="flex justify-center py-4">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                  </div>
-                ) : requirements && requirements.length > 0 ? (
-                  <div className="space-y-2">
-                    {requirements.slice(0, 3).map((req) => (
-                      <div
-                        key={req.id}
-                        className="flex items-center justify-between p-2 border rounded"
-                      >
-                        <span className="text-sm font-medium">{req.title}</span>
-                        <Badge variant="outline">{req.status}</Badge>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">要件がありません</p>
-                )}
-              </div>
-            </div>
           </TabsContent>
 
           <TabsContent value="tasks" className="p-6">
@@ -541,7 +384,7 @@ export default function ProjectDashboardPage() {
                   <ListTodo className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                   <h3 className="text-lg font-semibold mb-2">タスクがありません</h3>
                   <p className="text-muted-foreground mb-4">
-                    新しいタスクを作成するか、YAMLファイルからインポートしてください
+                    新しいタスクを作成してください
                   </p>
                   <div className="flex justify-center gap-2">
                     <TaskDialog
@@ -554,25 +397,16 @@ export default function ProjectDashboardPage() {
                         </Button>
                       }
                     />
-                    <Button variant="outline" onClick={() => setIsUploadOpen(true)}>
-                      <Upload className="h-4 w-4 mr-2" />
-                      YAMLをアップロード
-                    </Button>
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {tasks.map((task) => (
-                    <TaskCard
-                      key={task.id}
-                      task={task}
-                      onEdit={(task) => setEditingTask(task)}
-                      onDelete={(taskId) => deleteTaskMutation.mutate(taskId)}
-                      onStatusChange={handleTaskStatusChange}
-                      onExecute={handleTaskExecute}
-                    />
-                  ))}
-                </div>
+                <TaskTable
+                  tasks={tasks}
+                  onEdit={(task) => setEditingTask(task)}
+                  onDelete={(taskId) => deleteTaskMutation.mutate(taskId)}
+                  onStatusChange={handleTaskStatusChange}
+                  onExecute={handleTaskExecute}
+                />
               )}
             </div>
           </TabsContent>
@@ -617,16 +451,11 @@ export default function ProjectDashboardPage() {
                   />
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {requirements.map((requirement) => (
-                    <RequirementCard
-                      key={requirement.id}
-                      requirement={requirement}
-                      onEdit={(requirement) => setEditingRequirement(requirement)}
-                      onDelete={(requirementId) => deleteRequirementMutation.mutate(requirementId)}
-                    />
-                  ))}
-                </div>
+                <RequirementTable
+                  requirements={requirements}
+                  onEdit={(requirement) => setEditingRequirement(requirement)}
+                  onDelete={(requirementId) => deleteRequirementMutation.mutate(requirementId)}
+                />
               )}
             </div>
           </TabsContent>
@@ -648,10 +477,15 @@ export default function ProjectDashboardPage() {
       )}
 
       {/* Dialogs */}
-      <TaskUploadDialog open={isUploadOpen} onOpenChange={setIsUploadOpen} projectId={project.id} />
 
       {editingTask && (
-        <TaskDialog projectId={projectId} task={editingTask} onSave={handleTaskSave} />
+        <TaskDialog
+          projectId={projectId}
+          task={editingTask}
+          onSave={handleTaskSave}
+          open={!!editingTask}
+          onOpenChange={(open) => !open && setEditingTask(undefined)}
+        />
       )}
 
       {editingRequirement && (
@@ -659,6 +493,8 @@ export default function ProjectDashboardPage() {
           projectId={projectId}
           requirement={editingRequirement}
           onSave={handleRequirementSave}
+          open={!!editingRequirement}
+          onOpenChange={(open) => !open && setEditingRequirement(undefined)}
         />
       )}
     </div>
