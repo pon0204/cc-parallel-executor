@@ -6,12 +6,37 @@ import { Input } from '@/components/ui/input';
 import { useProjects } from '@/lib/hooks/useProjects';
 import { ProjectCard } from '@/components/dashboard/project-card';
 import { CreateProjectDialog } from '@/components/dashboard/create-project-dialog';
+import { toast } from '@/components/ui/use-toast';
+import { api } from '@/lib/api/client';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
 export default function DashboardPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const { data: projects, isLoading, error } = useProjects();
+  const queryClient = useQueryClient();
+
+  // Delete project mutation
+  const deleteProjectMutation = useMutation({
+    mutationFn: ({ projectId, force }: { projectId: string; force?: boolean }) => 
+      api.projects.delete(projectId, force),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      toast({ title: 'プロジェクトを削除しました' });
+    },
+    onError: (error) => {
+      toast({ 
+        title: 'エラー', 
+        description: 'プロジェクトの削除に失敗しました', 
+        variant: 'destructive' 
+      });
+    },
+  });
+
+  const handleDeleteProject = (projectId: string, force?: boolean) => {
+    deleteProjectMutation.mutate({ projectId, force });
+  };
 
   const filteredProjects = projects?.filter((project) =>
     project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -91,7 +116,11 @@ export default function DashboardPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredProjects?.map((project) => (
-              <ProjectCard key={project.id} project={project} />
+              <ProjectCard 
+                key={project.id} 
+                project={project} 
+                onDelete={handleDeleteProject}
+              />
             ))}
           </div>
         )}

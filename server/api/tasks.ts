@@ -296,7 +296,7 @@ taskRouter.post('/', validateRequest(CreateTaskSchema), async (req: Request, res
         parentTaskId: data.parentTaskId,
         name: data.name,
         description: data.description,
-        status: data.status.toUpperCase(),
+        status: (data.status || 'pending').toUpperCase(),
         priority: data.priority,
         taskType: data.taskType,
         instruction: data.instruction,

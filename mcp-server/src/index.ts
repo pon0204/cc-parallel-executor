@@ -439,6 +439,7 @@ function createMCPServer() {
             projectId,
             name,
             description,
+            status: 'pending',
             priority: priority || 5,
             taskType: taskType || 'general',
             instruction,
