@@ -104,6 +104,20 @@ export function CCTerminal({
       }
     });
 
+    // Handle special key combinations
+    term.attachCustomKeyEventHandler((event) => {
+      // Shift+Enter for inserting a newline without sending
+      if (event.shiftKey && event.key === 'Enter') {
+        // Send a literal newline character
+        if (socketInstance && socketInstance.connected) {
+          socketInstance.emit('input', '\n');
+        }
+        return false; // Prevent default Enter behavior
+      }
+      // Let other keys be handled normally
+      return true;
+    });
+
     // Set up terminal resize handler immediately
     term.onResize(({ cols, rows }) => {
       if (socketInstance && socketInstance.connected) {
@@ -239,20 +253,32 @@ export function CCTerminal({
   };
 
   return (
-    <div
-      ref={terminalRef}
-      onClick={handleClick}
-      className="h-full w-full bg-[#1a1b26] rounded-lg overflow-hidden cursor-text"
-      style={{ padding: '8px' }}
-    >
-        {!isConnected && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded-lg">
-            <div className="text-center space-y-2">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-              <p className="text-sm text-muted-foreground">接続中...</p>
+    <div className="flex flex-col h-full">
+      <div
+        ref={terminalRef}
+        onClick={handleClick}
+        className="flex-1 w-full bg-[#1a1b26] rounded-t-lg overflow-hidden cursor-text"
+        style={{ padding: '8px' }}
+      >
+          {!isConnected && (
+            <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded-lg">
+              <div className="text-center space-y-2">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                <p className="text-sm text-muted-foreground">接続中...</p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+      </div>
+      <div className="bg-muted/50 px-3 py-1.5 rounded-b-lg border-t text-xs text-muted-foreground flex items-center gap-2">
+        <span>💡</span>
+        <span>
+          <kbd className="px-1.5 py-0.5 text-xs bg-background border rounded">Shift+Enter</kbd> で改行を挿入
+        </span>
+        <span className="text-muted-foreground/50">•</span>
+        <span>
+          <kbd className="px-1.5 py-0.5 text-xs bg-background border rounded">Enter</kbd> で送信
+        </span>
+      </div>
     </div>
   );
 }
