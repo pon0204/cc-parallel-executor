@@ -273,8 +273,10 @@ export const api = {
         body: JSON.stringify({ projectId, name }),
       }),
     createChild: (data: {
+      projectId: string;
       parentInstanceId: string;
       taskId: string;
+      instruction: string;
       name?: string;
     }) =>
       fetchApi<CCInstance>('/cc/child', {

@@ -14,7 +14,8 @@ import {
   PlayCircle, 
   StopCircle, 
   CheckCircle, 
-  XCircle 
+  XCircle,
+  Bot
 } from 'lucide-react';
 import type { Task } from '@/lib/api/client';
 
@@ -23,9 +24,10 @@ interface TaskCardProps {
   onEdit?: (task: Task) => void;
   onDelete?: (taskId: string) => void;
   onStatusChange?: (taskId: string, status: string) => void;
+  onExecute?: (taskId: string) => void;
 }
 
-export function TaskCard({ task, onEdit, onDelete, onStatusChange }: TaskCardProps) {
+export function TaskCard({ task, onEdit, onDelete, onStatusChange, onExecute }: TaskCardProps) {
   const priorityColor = {
     1: 'bg-red-500/10 text-red-500 border-red-500/20',
     2: 'bg-red-500/10 text-red-500 border-red-500/20',
@@ -85,6 +87,7 @@ export function TaskCard({ task, onEdit, onDelete, onStatusChange }: TaskCardPro
   const canStart = ['pending', 'PENDING'].includes(task.status);
   const canStop = ['running', 'RUNNING', 'queued', 'QUEUED'].includes(task.status);
   const canComplete = ['running', 'RUNNING'].includes(task.status);
+  const canExecute = ['pending', 'PENDING'].includes(task.status) && task.instruction;
 
   return (
     <Card className="hover:shadow-lg transition-all duration-200 group">
@@ -149,6 +152,19 @@ export function TaskCard({ task, onEdit, onDelete, onStatusChange }: TaskCardPro
 
       <CardFooter className="gap-2">
         <div className="flex gap-2 flex-wrap flex-1">
+          {/* Execute with Child CC button */}
+          {onExecute && canExecute && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => onExecute(task.id)}
+              className="bg-purple-600 hover:bg-purple-700 text-white"
+            >
+              <Bot className="h-4 w-4 mr-1" />
+              子CC実行
+            </Button>
+          )}
+          
           {/* Status change buttons */}
           {onStatusChange && canStart && (
             <Button

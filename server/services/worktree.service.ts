@@ -36,8 +36,11 @@ export class WorktreeService {
         cwd: projectPath 
       });
 
-      // Create new worktree
-      await execa('git', ['worktree', 'add', worktreePath, currentBranch.trim()], {
+      // Create a unique branch name for this worktree
+      const branchName = `${worktreeName}-branch`;
+      
+      // Create new worktree with a new branch based on current branch
+      await execa('git', ['worktree', 'add', '-b', branchName, worktreePath, currentBranch.trim()], {
         cwd: projectPath,
       });
 
@@ -45,7 +48,8 @@ export class WorktreeService {
         projectPath, 
         worktreeName, 
         worktreePath,
-        branch: currentBranch.trim(),
+        branch: branchName,
+        baseBranch: currentBranch.trim(),
       });
 
       return worktreePath;
@@ -58,13 +62,23 @@ export class WorktreeService {
   async removeWorktree(projectPath: string, worktreeName: string): Promise<void> {
     try {
       const worktreePath = path.join(projectPath, this.worktreeBasePath, worktreeName);
+      const branchName = `${worktreeName}-branch`;
 
       // Remove worktree
       await execa('git', ['worktree', 'remove', worktreePath, '--force'], {
         cwd: projectPath,
       });
 
-      logger.info('Worktree removed:', { projectPath, worktreeName });
+      // Delete the associated branch
+      try {
+        await execa('git', ['branch', '-D', branchName], {
+          cwd: projectPath,
+        });
+      } catch (branchError) {
+        logger.warn('Failed to delete branch (may not exist):', { branchName, error: branchError });
+      }
+
+      logger.info('Worktree removed:', { projectPath, worktreeName, branchName });
     } catch (error) {
       logger.error('Failed to remove worktree:', error);
       // Don't throw error for cleanup operations

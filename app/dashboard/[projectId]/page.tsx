@@ -234,6 +234,57 @@ export default function ProjectDashboardPage() {
     await updateTaskStatusMutation.mutateAsync({ id: taskId, status });
   };
 
+  const handleTaskExecute = async (taskId: string) => {
+    const task = tasks?.find(t => t.id === taskId);
+    if (!task || !project) {
+      toast({ 
+        title: 'エラー', 
+        description: 'タスクが見つかりません', 
+        variant: 'destructive' 
+      });
+      return;
+    }
+
+    try {
+      setIsStartingChildCC(true);
+      
+      // Create child CC instance using MCP
+      const instruction = `タスク: ${task.name}\n\n${task.instruction}\n\nプロジェクト: ${project.name}\n作業ディレクトリ: ${project.workdir}`;
+      
+      // This will be handled by MCP tools when available
+      toast({
+        title: '子CCインスタンスを起動中...',
+        description: `タスク: ${task.name}`,
+      });
+
+      // Start the child CC via API
+      const childInstance = await api.cc.createChild({
+        projectId: project.id,
+        taskId: task.id,
+        instruction: instruction,
+        parentInstanceId: parentCC?.id || 'default',
+      });
+
+      // Update task status to running
+      await updateTaskStatusMutation.mutateAsync({ id: taskId, status: 'running' });
+
+      toast({
+        title: '子CCインスタンスが起動しました',
+        description: `タスク: ${task.name}`,
+      });
+
+    } catch (error) {
+      console.error('Failed to execute task with child CC:', error);
+      toast({
+        title: 'エラー',
+        description: '子CCの起動に失敗しました',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsStartingChildCC(false);
+    }
+  };
+
   const handleRequirementSave = async (requirementData: Partial<Requirement>) => {
     if (editingRequirement) {
       await updateRequirementMutation.mutateAsync({ id: editingRequirement.id, data: requirementData });
@@ -487,6 +538,7 @@ export default function ProjectDashboardPage() {
                       onEdit={(task) => setEditingTask(task)}
                       onDelete={(taskId) => deleteTaskMutation.mutate(taskId)}
                       onStatusChange={handleTaskStatusChange}
+                      onExecute={handleTaskExecute}
                     />
                   ))}
                 </div>

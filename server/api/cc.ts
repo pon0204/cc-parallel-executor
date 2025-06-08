@@ -14,11 +14,10 @@ const CreateParentCCSchema = z.object({
 });
 
 const CreateChildCCSchema = z.object({
+  projectId: z.string(),
   parentInstanceId: z.string(),
   taskId: z.string(),
   instruction: z.string(),
-  projectWorkdir: z.string(),
-  worktreeName: z.string().optional(),
   name: z.string().optional(),
 });
 
@@ -118,11 +117,10 @@ ccRouter.post('/parent', validateRequest(CreateParentCCSchema), async (req: Requ
 ccRouter.post('/child', validateRequest(CreateChildCCSchema), async (req: Request, res: Response) => {
   try {
     const { 
+      projectId,
       parentInstanceId, 
       taskId, 
       instruction, 
-      projectWorkdir, 
-      worktreeName, 
       name 
     } = req.body as z.infer<typeof CreateChildCCSchema>;
 
@@ -137,7 +135,15 @@ ccRouter.post('/child', validateRequest(CreateChildCCSchema), async (req: Reques
       return res.status(404).json({ error: 'Parent CC not found' });
     }
 
-    // Verify task exists
+    // Verify project and task exist
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+    });
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
     const task = await prisma.task.findUnique({
       where: { id: taskId },
     });
@@ -155,6 +161,10 @@ ccRouter.post('/child', validateRequest(CreateChildCCSchema), async (req: Reques
       },
     });
 
+    // Generate worktree name
+    const worktreeName = `worktree-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    const worktreePath = `${project.workdir}/../${worktreeName}`;
+
     // Create CC instance record
     const instance = await prisma.cCInstance.create({
       data: {
@@ -162,7 +172,7 @@ ccRouter.post('/child', validateRequest(CreateChildCCSchema), async (req: Reques
         type: 'child',
         status: 'running',
         parentInstanceId,
-        worktreePath: worktreeName ? `${projectWorkdir}/../${worktreeName}` : null,
+        worktreePath,
       },
     });
 
@@ -179,6 +189,7 @@ ccRouter.post('/child', validateRequest(CreateChildCCSchema), async (req: Reques
       instanceId: instance.id, 
       parentInstanceId,
       taskId,
+      projectId,
       sessionId,
     });
 
@@ -192,8 +203,8 @@ ccRouter.post('/child', validateRequest(CreateChildCCSchema), async (req: Reques
       parentInstanceId,
       taskId,
       instruction,
-      projectWorkdir,
-      worktreeName: worktreeName || `worktree-${instance.id}`,
+      projectWorkdir: project.workdir,
+      worktreeName,
       sessionId,
     }).catch(error => {
       logger.error('Child CC startup failed:', error);
