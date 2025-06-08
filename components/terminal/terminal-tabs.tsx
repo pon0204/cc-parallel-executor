@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Grid2X2, Maximize2, Terminal } from 'lucide-react';
-import { CCTerminal } from './terminal-wrapper';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useProjectStore } from '@/lib/stores/project.store';
+import { Grid2X2, Maximize2, Terminal } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import type { Socket } from 'socket.io-client';
+import { CCTerminal } from './terminal-wrapper';
 
 interface TerminalTabsProps {
   projectId: string;
@@ -115,11 +115,7 @@ export function TerminalTabs({ parentSocket, focusedTerminalId }: TerminalTabsPr
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">ターミナル（分割表示）</h2>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setViewMode('tabs')}
-        >
+        <Button variant="outline" size="sm" onClick={() => setViewMode('tabs')}>
           <Maximize2 className="h-4 w-4 mr-2" />
           タブ表示
         </Button>
@@ -147,9 +143,7 @@ export function TerminalTabs({ parentSocket, focusedTerminalId }: TerminalTabsPr
           <div key={child.id} className="space-y-2">
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-medium">子CC-{index + 1}</h3>
-              {child.status === 'running' && (
-                <Badge variant="default">実行中</Badge>
-              )}
+              {child.status === 'running' && <Badge variant="default">実行中</Badge>}
             </div>
             <div className="h-[400px]">
               <CCTerminal
@@ -164,9 +158,7 @@ export function TerminalTabs({ parentSocket, focusedTerminalId }: TerminalTabsPr
         {/* Empty slots */}
         {childCCs.length === 0 && (
           <div className="h-[400px] border-2 border-dashed rounded-lg flex items-center justify-center">
-            <p className="text-sm text-muted-foreground">
-              子CCが起動されると表示されます
-            </p>
+            <p className="text-sm text-muted-foreground">子CCが起動されると表示されます</p>
           </div>
         )}
       </div>

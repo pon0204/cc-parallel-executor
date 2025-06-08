@@ -31,8 +31,9 @@ npm run db:push      # スキーマをデータベースにプッシュ
 npm run db:seed      # サンプルデータ投入
 
 # 開発ツール
-npm run lint         # ESLint実行
-npm run format       # Prettier実行
+npm run lint         # Biome による静的解析
+npm run lint:fix     # Biome による自動修正
+npm run format       # Biome によるフォーマット
 npm run test         # テスト実行
 npm run clean        # ビルドファイル削除
 ```
@@ -406,8 +407,7 @@ claude mcp add claude-code-parallel "bun /path/to/mcp-server/src/index.ts"
 ### 開発ツール
 
 - **Bun**: 高速JavaScript/TypeScriptランタイム
-- **ESLint**: TypeScript対応リンター
-- **Prettier**: コードフォーマッター
+- **Biome**: 高速オールインワンツール（リンター + フォーマッター）
 - **Husky**: Gitフック管理
 - **lint-staged**: ステージファイル自動整形
 - **Concurrently**: 複数プロセス並列実行
@@ -421,8 +421,7 @@ claude mcp add claude-code-parallel "bun /path/to/mcp-server/src/index.ts"
 
 ### 品質管理
 
-- **.eslintrc.json**: 厳格な型安全ルール設定
-- **.prettierrc**: 一貫したフォーマット設定
+- **biome.json**: 統合的なリンター・フォーマッター設定
 - **lint-staged**: 自動品質チェック
 
 ### Next.js設定

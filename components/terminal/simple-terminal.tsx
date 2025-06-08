@@ -1,11 +1,11 @@
 'use client';
 
+import { FitAddon } from '@xterm/addon-fit';
+import { WebLinksAddon } from '@xterm/addon-web-links';
+import { Terminal } from '@xterm/xterm';
 import { useEffect, useRef, useState } from 'react';
 import io from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
-import { Terminal } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
-import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
 
 interface SimpleTerminalProps {
@@ -22,7 +22,7 @@ export function SimpleTerminal({ onConnected, onDisconnected }: SimpleTerminalPr
   const fitAddonRef = useRef<FitAddon | null>(null);
   const onConnectedRef = useRef(onConnected);
   const onDisconnectedRef = useRef(onDisconnected);
-  
+
   // Update refs when props change
   onConnectedRef.current = onConnected;
   onDisconnectedRef.current = onDisconnected;
@@ -47,10 +47,10 @@ export function SimpleTerminal({ onConnected, onDisconnected }: SimpleTerminalPr
     // Create addons
     const fitAddon = new FitAddon();
     const webLinksAddon = new WebLinksAddon();
-    
+
     term.loadAddon(fitAddon);
     term.loadAddon(webLinksAddon);
-    
+
     fitAddonRef.current = fitAddon;
 
     // Open terminal in the div
@@ -60,16 +60,18 @@ export function SimpleTerminal({ onConnected, onDisconnected }: SimpleTerminalPr
     setTerminal(term);
 
     // Connect to socket.io (Project Server)
-    const socketConnection = io(`http://localhost:${process.env.NEXT_PUBLIC_PROJECT_SERVER_PORT || 8081}`);
+    const socketConnection = io(
+      `http://localhost:${process.env.NEXT_PUBLIC_PROJECT_SERVER_PORT || 8081}`
+    );
 
     socketConnection.on('connect', () => {
       console.log('Connected to socket server');
       setIsConnected(true);
-      
+
       // Create session using original protocol
       socketConnection.emit('create-session', {
         cols: 80,
-        rows: 24
+        rows: 24,
       });
     });
 
@@ -107,12 +109,14 @@ export function SimpleTerminal({ onConnected, onDisconnected }: SimpleTerminalPr
         // Echo the input locally for immediate feedback
         if (data === '\r') {
           term.write('\r\n');
-        } else if (data === '\u007f') { // Backspace
+        } else if (data === '\u007f') {
+          // Backspace
           term.write('\b \b');
-        } else if (data.charCodeAt(0) >= 32) { // Printable characters
+        } else if (data.charCodeAt(0) >= 32) {
+          // Printable characters
           term.write(data);
         }
-        
+
         socketConnection.emit('input', data);
       }
     });
@@ -145,10 +149,5 @@ export function SimpleTerminal({ onConnected, onDisconnected }: SimpleTerminalPr
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  return (
-    <div 
-      ref={terminalRef}
-      className="w-full h-96 bg-black rounded-lg p-2 overflow-hidden"
-    />
-  );
+  return <div ref={terminalRef} className="w-full h-96 bg-black rounded-lg p-2 overflow-hidden" />;
 }

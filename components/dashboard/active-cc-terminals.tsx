@@ -1,26 +1,38 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { CCTerminal } from '@/components/terminal/terminal-wrapper';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { CCTerminal } from '@/components/terminal/terminal-wrapper';
-import { useProjectStore } from '@/lib/stores/project.store';
-import { api, type CCInstance, type Project } from '@/lib/api/client';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from '@/components/ui/use-toast';
-import { 
-  Terminal, 
-  Bot, 
-  Crown, 
-  Play, 
-  Square, 
-  RotateCcw,
+import { type CCInstance, type Project, api } from '@/lib/api/client';
+import { useProjectStore } from '@/lib/stores/project.store';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  AlertCircle,
+  Bot,
+  Crown,
   Maximize2,
   Minimize2,
+  Play,
+  Plus,
+  RotateCcw,
+  Square,
+  Terminal,
+  Trash2,
   Zap,
-  Plus
 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import type { Socket } from 'socket.io-client';
 
 interface ActiveCCTerminalsProps {
@@ -34,7 +46,7 @@ export function ActiveCCTerminals({ projectId, project, parentSocket }: ActiveCC
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isStartingCC, setIsStartingCC] = useState(false);
   const queryClient = useQueryClient();
-  
+
   // Get CC instances (temporarily showing all instances until we fix project filtering)
   const { data: ccInstances, isLoading } = useQuery({
     queryKey: ['cc-instances', projectId],
@@ -70,12 +82,11 @@ export function ActiveCCTerminals({ projectId, project, parentSocket }: ActiveCC
   };
 
   // Filter active instances (running or idle parent/child CCs)
-  const activeInstances = ccInstances?.filter(instance => 
-    ['running', 'idle'].includes(instance.status)
-  ) || [];
+  const activeInstances =
+    ccInstances?.filter((instance) => ['running', 'idle'].includes(instance.status)) || [];
 
-  const parentInstances = activeInstances.filter(instance => instance.type === 'parent');
-  const childInstances = activeInstances.filter(instance => instance.type === 'child');
+  const parentInstances = activeInstances.filter((instance) => instance.type === 'parent');
+  const childInstances = activeInstances.filter((instance) => instance.type === 'child');
 
   const toggleTerminalExpansion = (instanceId: string) => {
     const newExpanded = new Set(expandedTerminals);
@@ -189,7 +200,11 @@ export function ActiveCCTerminals({ projectId, project, parentSocket }: ActiveCC
           size="sm"
           onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
         >
-          {viewMode === 'grid' ? <Minimize2 className="h-4 w-4 mr-2" /> : <Maximize2 className="h-4 w-4 mr-2" />}
+          {viewMode === 'grid' ? (
+            <Minimize2 className="h-4 w-4 mr-2" />
+          ) : (
+            <Maximize2 className="h-4 w-4 mr-2" />
+          )}
           {viewMode === 'grid' ? 'リスト表示' : 'グリッド表示'}
         </Button>
       </div>
@@ -201,7 +216,9 @@ export function ActiveCCTerminals({ projectId, project, parentSocket }: ActiveCC
             <Crown className="h-4 w-4 text-yellow-500" />
             親Claude Code
           </h3>
-          <div className={viewMode === 'grid' ? 'grid grid-cols-1 lg:grid-cols-2 gap-4' : 'space-y-4'}>
+          <div
+            className={viewMode === 'grid' ? 'grid grid-cols-1 lg:grid-cols-2 gap-4' : 'space-y-4'}
+          >
             {parentInstances.map((instance) => (
               <TerminalCard
                 key={instance.id}
@@ -225,7 +242,13 @@ export function ActiveCCTerminals({ projectId, project, parentSocket }: ActiveCC
             <Bot className="h-4 w-4 text-purple-500" />
             子Claude Code
           </h3>
-          <div className={viewMode === 'grid' ? 'grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4' : 'space-y-4'}>
+          <div
+            className={
+              viewMode === 'grid'
+                ? 'grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4'
+                : 'space-y-4'
+            }
+          >
             {childInstances.map((instance) => (
               <TerminalCard
                 key={instance.id}
@@ -254,16 +277,20 @@ interface TerminalCardProps {
   viewMode: 'grid' | 'list';
 }
 
-function TerminalCard({ 
-  instance, 
-  isExpanded, 
-  onToggleExpansion, 
+function TerminalCard({
+  instance,
+  isExpanded,
+  onToggleExpansion,
   parentSocket,
   getStatusColor,
   getStatusIcon,
-  viewMode
+  viewMode,
 }: TerminalCardProps) {
-  const terminalHeight = viewMode === 'grid' ? (isExpanded ? 'h-96' : 'h-48') : (isExpanded ? 'h-80' : 'h-32');
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const queryClient = useQueryClient();
+  
+  const terminalHeight =
+    viewMode === 'grid' ? (isExpanded ? 'h-96' : 'h-48') : isExpanded ? 'h-80' : 'h-32';
 
   return (
     <Card className="overflow-hidden">
@@ -275,23 +302,26 @@ function TerminalCard({
             ) : (
               <Bot className="h-4 w-4 text-purple-500" />
             )}
-            <CardTitle className="text-sm font-medium truncate">
-              {instance.name}
-            </CardTitle>
+            <CardTitle className="text-sm font-medium truncate">{instance.name}</CardTitle>
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className={getStatusColor(instance.status)}>
               {getStatusIcon(instance.status)}
               <span className="ml-1 capitalize">{instance.status}</span>
             </Badge>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onToggleExpansion}
-              className="h-6 w-6 p-0"
-            >
+            <Button variant="ghost" size="sm" onClick={onToggleExpansion} className="h-6 w-6 p-0">
               {isExpanded ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
             </Button>
+            {instance.type === 'child' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowDeleteDialog(true)}
+                className="h-6 w-6 p-0 hover:text-destructive"
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            )}
           </div>
         </div>
       </CardHeader>
@@ -305,6 +335,43 @@ function TerminalCard({
           />
         </div>
       </CardContent>
+      
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>子CCを終了しますか？</AlertDialogTitle>
+            <AlertDialogDescription>
+              この操作により、子CC「{instance.name}」のプロセスが終了します。
+              実行中のタスクがある場合は、進行状況が失われる可能性があります。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>キャンセル</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                try {
+                  await api.cc.stop(instance.id);
+                  toast({
+                    title: '子CCを終了しました',
+                    description: `${instance.name} のプロセスを終了しました。`,
+                  });
+                  queryClient.invalidateQueries({ queryKey: ['cc-instances'] });
+                } catch (error) {
+                  toast({
+                    title: 'エラー',
+                    description: '子CCの終了に失敗しました',
+                    variant: 'destructive',
+                  });
+                }
+              }}
+            >
+              終了
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

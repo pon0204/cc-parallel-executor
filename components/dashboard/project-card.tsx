@@ -1,16 +1,40 @@
 'use client';
 
-import Link from 'next/link';
-import { useState } from 'react';
-import { formatDistanceToNow } from 'date-fns';
-import { ja } from 'date-fns/locale';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { FolderOpen, Clock, ListTodo, FileText, GitBranch, ChevronRight, MoreVertical, Trash2, Settings } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import type { Project } from '@/lib/api/client';
+import { formatDistanceToNow } from 'date-fns';
+import { ja } from 'date-fns/locale';
+import {
+  ChevronRight,
+  Clock,
+  FileText,
+  FolderOpen,
+  GitBranch,
+  ListTodo,
+  MoreVertical,
+  Settings,
+  Trash2,
+} from 'lucide-react';
+import Link from 'next/link';
+import { useState } from 'react';
 
 interface ProjectCardProps {
   project: Project;
@@ -21,19 +45,25 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [forceDelete, setForceDelete] = useState(false);
 
-  const statusColor = {
-    active: 'bg-green-500/10 text-green-500 border-green-500/20',
-    inactive: 'bg-gray-500/10 text-gray-500 border-gray-500/20',
-    completed: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-  }[project.status] || 'bg-gray-500/10 text-gray-500 border-gray-500/20';
+  const statusColor =
+    {
+      active: 'bg-green-500/10 text-green-500 border-green-500/20',
+      inactive: 'bg-gray-500/10 text-gray-500 border-gray-500/20',
+      completed: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
+    }[project.status] || 'bg-gray-500/10 text-gray-500 border-gray-500/20';
 
-  const statusLabel = {
-    active: 'アクティブ',
-    inactive: '非アクティブ',
-    completed: '完了',
-  }[project.status] || project.status;
+  const statusLabel =
+    {
+      active: 'アクティブ',
+      inactive: '非アクティブ',
+      completed: '完了',
+    }[project.status] || project.status;
 
-  const hasData = (project._count?.tasks || 0) + (project._count?.requirements || 0) + (project._count?.features || 0) > 0;
+  const hasData =
+    (project._count?.tasks || 0) +
+      (project._count?.requirements || 0) +
+      (project._count?.features || 0) >
+    0;
 
   const handleDelete = () => {
     if (onDelete) {
@@ -81,7 +111,7 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
                     <p className="text-sm text-muted-foreground">
                       <strong>{project.name}</strong> を削除しようとしています。
                     </p>
-                    
+
                     {hasData && (
                       <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
                         <div className="flex items-start gap-2">

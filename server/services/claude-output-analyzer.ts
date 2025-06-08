@@ -1,11 +1,11 @@
 import { logger } from '../utils/logger.js';
 
 export enum OutputType {
-  THINKING = 'thinking',      // ✳ Thinking...
-  CONTENT = 'content',        // 実際の回答
-  PROMPT = 'prompt',          // Human: 
-  TOOL_USE = 'tool_use',      // ツール使用中
-  ERROR = 'error'             // エラー
+  THINKING = 'thinking', // ✳ Thinking...
+  CONTENT = 'content', // 実際の回答
+  PROMPT = 'prompt', // Human:
+  TOOL_USE = 'tool_use', // ツール使用中
+  ERROR = 'error', // エラー
 }
 
 export enum ClaudeState {
@@ -13,7 +13,7 @@ export enum ClaudeState {
   THINKING = 'thinking',
   RESPONDING = 'responding',
   WAITING_INPUT = 'waiting_input',
-  EXECUTING_TOOL = 'executing_tool'
+  EXECUTING_TOOL = 'executing_tool',
 }
 
 interface StateChangeEvent {
@@ -25,7 +25,7 @@ interface StateChangeEvent {
 
 export class ClaudeOutputAnalyzer {
   private state = ClaudeState.IDLE;
-  private stateHistory: Array<{state: ClaudeState, timestamp: Date}> = [];
+  private stateHistory: Array<{ state: ClaudeState; timestamp: Date }> = [];
   private buffer = '';
   private lastContentTime = Date.now();
   private checkInterval: NodeJS.Timeout | null = null;
@@ -44,12 +44,12 @@ export class ClaudeOutputAnalyzer {
 
   start(onStateChange: (event: StateChangeEvent) => void) {
     this.onStateChange = onStateChange;
-    
+
     // 定期的にアイドル状態をチェック
     this.checkInterval = setInterval(() => {
       this.checkIdleStatus();
     }, this.options.checkIntervalMs!);
-    
+
     logger.info(`Claude output analyzer started for instance ${this.instanceId}`);
   }
 
@@ -64,12 +64,12 @@ export class ClaudeOutputAnalyzer {
   processOutput(data: string): void {
     this.buffer += data;
     const outputType = this.classifyOutput(data);
-    
+
     // 思考中やツール使用中でなければ最終コンテンツ時刻を更新
     if (outputType === OutputType.CONTENT || outputType === OutputType.PROMPT) {
       this.lastContentTime = Date.now();
     }
-    
+
     // 状態遷移の処理
     this.updateState(outputType, data);
   }
@@ -78,10 +78,10 @@ export class ClaudeOutputAnalyzer {
     const thinkingPatterns = [
       /✳\s+\w+\.{3}\s*\(\d+s\s*·\s*[↑↓]\s*\d+\s*tokens/,
       /\[ESC to interrupt\]/i,
-      /Thinking|Planning|Analyzing|Searching|Reading|Writing|Executing/i
+      /Thinking|Planning|Analyzing|Searching|Reading|Writing|Executing/i,
     ];
-    
-    return thinkingPatterns.some(p => p.test(data));
+
+    return thinkingPatterns.some((p) => p.test(data));
   }
 
   private classifyOutput(output: string): OutputType {
@@ -118,7 +118,7 @@ export class ClaudeOutputAnalyzer {
       this.state = newState;
       this.stateHistory.push({
         state: newState,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
 
       // 状態変化を通知
@@ -127,37 +127,40 @@ export class ClaudeOutputAnalyzer {
           from: previousState,
           to: newState,
           timestamp: new Date(),
-          instanceId: this.instanceId
+          instanceId: this.instanceId,
         });
       }
 
       logger.debug(`Claude state changed: ${previousState} -> ${newState}`, {
-        instanceId: this.instanceId
+        instanceId: this.instanceId,
       });
     }
   }
 
   private checkIdleStatus() {
     const timeSinceLastContent = Date.now() - this.lastContentTime;
-    
+
     // アイドルタイムアウトを超えた場合
-    if (timeSinceLastContent > this.options.idleTimeoutMs! && this.state === ClaudeState.RESPONDING) {
+    if (
+      timeSinceLastContent > this.options.idleTimeoutMs! &&
+      this.state === ClaudeState.RESPONDING
+    ) {
       // バッファの最後をチェックして状態を判定
       const lastChars = this.buffer.slice(-200);
-      
+
       if (/Human:\s*$/.test(lastChars)) {
         this.updateState(OutputType.PROMPT, '');
       } else {
         // 回答が完了したと判断
         const previousState = this.state;
         this.state = ClaudeState.IDLE;
-        
+
         if (this.onStateChange) {
           this.onStateChange({
             from: previousState,
             to: ClaudeState.IDLE,
             timestamp: new Date(),
-            instanceId: this.instanceId
+            instanceId: this.instanceId,
           });
         }
       }
@@ -168,7 +171,7 @@ export class ClaudeOutputAnalyzer {
     return this.state;
   }
 
-  getStateHistory(): Array<{state: ClaudeState, timestamp: Date}> {
+  getStateHistory(): Array<{ state: ClaudeState; timestamp: Date }> {
     return [...this.stateHistory];
   }
 
@@ -194,7 +197,7 @@ export class ClaudeOutputAnalyzer {
   // 質問やアクションが必要なパターンを検出
   detectActionNeeded(): { needed: boolean; type: string; confidence: number } {
     const lastOutput = this.buffer.slice(-500);
-    
+
     const patterns = [
       { regex: /どうしますか[\?？]\s*$/, type: 'question' },
       { regex: /選んでください\s*$/, type: 'choice' },
@@ -209,7 +212,7 @@ export class ClaudeOutputAnalyzer {
         return {
           needed: true,
           type: pattern.type,
-          confidence: 0.9
+          confidence: 0.9,
         };
       }
     }
@@ -219,14 +222,14 @@ export class ClaudeOutputAnalyzer {
       return {
         needed: true,
         type: 'general_question',
-        confidence: 0.7
+        confidence: 0.7,
       };
     }
 
     return {
       needed: false,
       type: 'none',
-      confidence: 0
+      confidence: 0,
     };
   }
 }

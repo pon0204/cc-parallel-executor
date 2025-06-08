@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useToast } from '@/components/ui/use-toast';
-import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Info, AlertCircle, HelpCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/ui/use-toast';
+import { AlertCircle, HelpCircle, Info } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import type { Socket } from 'socket.io-client';
 
 interface Notification {
@@ -30,24 +30,24 @@ export function ChildCCNotification({ socket, onFocusTerminal }: ChildCCNotifica
     if (!socket) return;
 
     // 入力待ち通知
-    const handleNeedsInput = (data: {instanceId: string; taskId?: string; context?: string}) => {
+    const handleNeedsInput = (data: { instanceId: string; taskId?: string; context?: string }) => {
       const notification: Notification = {
         id: `${data.instanceId}-${Date.now()}`,
         instanceId: data.instanceId,
         taskId: data.taskId,
         type: 'waiting_input',
         context: data.context,
-        timestamp: new Date()
+        timestamp: new Date(),
       };
 
-      setNotifications(prev => [...prev, notification]);
+      setNotifications((prev) => [...prev, notification]);
 
       toast({
         title: `子CC ${data.instanceId.slice(0, 8)} が入力を待っています`,
         description: 'タスク: ' + (data.taskId?.slice(0, 8) || '不明'),
         action: onFocusTerminal ? (
-          <Button 
-            size="sm" 
+          <Button
+            size="sm"
             onClick={() => {
               onFocusTerminal(data.instanceId);
               removeNotification(notification.id);
@@ -60,7 +60,12 @@ export function ChildCCNotification({ socket, onFocusTerminal }: ChildCCNotifica
     };
 
     // アクション必要通知
-    const handleActionRequired = (data: {instanceId: string; taskId?: string; actionType?: string; context?: string}) => {
+    const handleActionRequired = (data: {
+      instanceId: string;
+      taskId?: string;
+      actionType?: string;
+      context?: string;
+    }) => {
       const notification: Notification = {
         id: `${data.instanceId}-${Date.now()}`,
         instanceId: data.instanceId,
@@ -68,27 +73,28 @@ export function ChildCCNotification({ socket, onFocusTerminal }: ChildCCNotifica
         type: 'action_required',
         actionType: data.actionType,
         context: data.context,
-        timestamp: new Date()
+        timestamp: new Date(),
       };
 
-      setNotifications(prev => [...prev, notification]);
+      setNotifications((prev) => [...prev, notification]);
 
-      const actionTypeText = {
-        question: '質問への回答',
-        choice: '選択',
-        confirmation: '確認',
-        continue: '継続の判断',
-        execute: '実行の承認',
-        general_question: '応答'
-      }[data.actionType || ''] || 'アクション';
+      const actionTypeText =
+        {
+          question: '質問への回答',
+          choice: '選択',
+          confirmation: '確認',
+          continue: '継続の判断',
+          execute: '実行の承認',
+          general_question: '応答',
+        }[data.actionType || ''] || 'アクション';
 
       toast({
         title: `子CCが${actionTypeText}を待っています`,
         description: `インスタンス: ${data.instanceId.slice(0, 8)}`,
         variant: 'default',
         action: onFocusTerminal ? (
-          <Button 
-            size="sm" 
+          <Button
+            size="sm"
             onClick={() => {
               onFocusTerminal(data.instanceId);
               removeNotification(notification.id);
@@ -110,7 +116,7 @@ export function ChildCCNotification({ socket, onFocusTerminal }: ChildCCNotifica
   }, [socket, toast, onFocusTerminal]);
 
   const removeNotification = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
   };
 
   const getIcon = (type: string) => {
@@ -124,7 +130,7 @@ export function ChildCCNotification({ socket, onFocusTerminal }: ChildCCNotifica
     }
   };
 
-  const getAlertVariant = (type: string): "default" | "destructive" => {
+  const getAlertVariant = (type: string): 'default' | 'destructive' => {
     return type === 'action_required' ? 'default' : 'default';
   };
 
@@ -133,8 +139,8 @@ export function ChildCCNotification({ socket, onFocusTerminal }: ChildCCNotifica
   return (
     <div className="fixed bottom-4 right-4 z-50 space-y-2 max-w-md">
       {notifications.slice(-3).map((notification) => (
-        <Alert 
-          key={notification.id} 
+        <Alert
+          key={notification.id}
           variant={getAlertVariant(notification.type)}
           className="cursor-pointer transition-all hover:shadow-lg"
           onClick={() => {
@@ -149,8 +155,8 @@ export function ChildCCNotification({ socket, onFocusTerminal }: ChildCCNotifica
             <div className="flex-1">
               <AlertDescription className="text-sm">
                 <div className="font-medium mb-1">
-                  {notification.type === 'waiting_input' 
-                    ? '子CCが入力待機中' 
+                  {notification.type === 'waiting_input'
+                    ? '子CCが入力待機中'
                     : `子CCが${notification.actionType || 'アクション'}を必要としています`}
                 </div>
                 {notification.taskId && (

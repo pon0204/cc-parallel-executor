@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import { z } from 'zod';
-import { prisma } from '../utils/prisma.js';
-import { logger } from '../utils/logger.js';
-import { validateRequest } from '../utils/validation.js';
 import type { Request, Response } from 'express';
+import { z } from 'zod';
+import { logger } from '../utils/logger.js';
+import { prisma } from '../utils/prisma.js';
+import { validateRequest } from '../utils/validation.js';
 
 export const requirementRouter = Router();
 
@@ -24,10 +24,7 @@ requirementRouter.get('/project/:projectId', async (req: Request, res: Response)
   try {
     const requirements = await prisma.requirement.findMany({
       where: { projectId: req.params.projectId },
-      orderBy: [
-        { priority: 'desc' },
-        { createdAt: 'desc' },
-      ],
+      orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
     });
     res.json(requirements);
   } catch (error) {
@@ -58,55 +55,66 @@ requirementRouter.get('/:id', async (req: Request, res: Response) => {
 });
 
 // Create new requirement
-requirementRouter.post('/', validateRequest(CreateRequirementSchema), async (req: Request, res: Response) => {
-  try {
-    const data = req.body as z.infer<typeof CreateRequirementSchema>;
-    
-    // Verify project exists
-    const project = await prisma.project.findUnique({
-      where: { id: data.projectId },
-    });
+requirementRouter.post(
+  '/',
+  validateRequest(CreateRequirementSchema),
+  async (req: Request, res: Response) => {
+    try {
+      const data = req.body as z.infer<typeof CreateRequirementSchema>;
 
-    if (!project) {
-      return res.status(404).json({ error: 'Project not found' });
-    }
+      // Verify project exists
+      const project = await prisma.project.findUnique({
+        where: { id: data.projectId },
+      });
 
-    const requirement = await prisma.requirement.create({
-      data: {
+      if (!project) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
+
+      const requirement = await prisma.requirement.create({
+        data: {
+          projectId: data.projectId,
+          type: data.type,
+          title: data.title,
+          content: data.content,
+          priority: data.priority,
+          status: data.status,
+        },
+      });
+
+      logger.info('Requirement created:', {
+        requirementId: requirement.id,
         projectId: data.projectId,
-        type: data.type,
-        title: data.title,
-        content: data.content,
-        priority: data.priority,
-        status: data.status,
-      },
-    });
-
-    logger.info('Requirement created:', { requirementId: requirement.id, projectId: data.projectId });
-    res.status(201).json(requirement);
-  } catch (error) {
-    logger.error('Failed to create requirement:', error);
-    res.status(500).json({ error: 'Failed to create requirement' });
+      });
+      res.status(201).json(requirement);
+    } catch (error) {
+      logger.error('Failed to create requirement:', error);
+      res.status(500).json({ error: 'Failed to create requirement' });
+    }
   }
-});
+);
 
 // Update requirement
-requirementRouter.put('/:id', validateRequest(UpdateRequirementSchema), async (req: Request, res: Response) => {
-  try {
-    const data = req.body as z.infer<typeof UpdateRequirementSchema>;
+requirementRouter.put(
+  '/:id',
+  validateRequest(UpdateRequirementSchema),
+  async (req: Request, res: Response) => {
+    try {
+      const data = req.body as z.infer<typeof UpdateRequirementSchema>;
 
-    const requirement = await prisma.requirement.update({
-      where: { id: req.params.id },
-      data,
-    });
+      const requirement = await prisma.requirement.update({
+        where: { id: req.params.id },
+        data,
+      });
 
-    logger.info('Requirement updated:', { requirementId: requirement.id });
-    res.json(requirement);
-  } catch (error) {
-    logger.error('Failed to update requirement:', error);
-    res.status(500).json({ error: 'Failed to update requirement' });
+      logger.info('Requirement updated:', { requirementId: requirement.id });
+      res.json(requirement);
+    } catch (error) {
+      logger.error('Failed to update requirement:', error);
+      res.status(500).json({ error: 'Failed to update requirement' });
+    }
   }
-});
+);
 
 // Delete requirement
 requirementRouter.delete('/:id', async (req: Request, res: Response) => {
@@ -142,7 +150,7 @@ requirementRouter.post('/bulk', async (req: Request, res: Response) => {
     }
 
     // Validate each requirement
-    const validatedRequirements = requirements.map(req => 
+    const validatedRequirements = requirements.map((req) =>
       CreateRequirementSchema.parse({ ...req, projectId })
     );
 
@@ -152,9 +160,9 @@ requirementRouter.post('/bulk', async (req: Request, res: Response) => {
     });
 
     logger.info('Bulk requirements created:', { count: created.count, projectId });
-    res.status(201).json({ 
+    res.status(201).json({
       message: 'Requirements created successfully',
-      count: created.count 
+      count: created.count,
     });
   } catch (error) {
     logger.error('Failed to bulk create requirements:', error);

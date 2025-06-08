@@ -2,7 +2,7 @@
 
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { Loader2, Brain, MessageSquare, Pause, Play, AlertCircle } from 'lucide-react';
+import { AlertCircle, Brain, Loader2, MessageSquare, Pause, Play } from 'lucide-react';
 
 export type ClaudeState = 'idle' | 'thinking' | 'responding' | 'waiting_input' | 'executing_tool';
 
@@ -20,7 +20,7 @@ export function ChildCCStatusBadge({ state, className, showIcon = true }: ChildC
           label: '待機中',
           variant: 'secondary' as const,
           icon: Pause,
-          className: 'bg-gray-100 text-gray-700'
+          className: 'bg-gray-100 text-gray-700',
         };
       case 'thinking':
         return {
@@ -28,14 +28,14 @@ export function ChildCCStatusBadge({ state, className, showIcon = true }: ChildC
           variant: 'default' as const,
           icon: Brain,
           className: 'bg-blue-100 text-blue-700',
-          animate: true
+          animate: true,
         };
       case 'responding':
         return {
           label: '応答中',
           variant: 'default' as const,
           icon: MessageSquare,
-          className: 'bg-green-100 text-green-700'
+          className: 'bg-green-100 text-green-700',
         };
       case 'waiting_input':
         return {
@@ -43,7 +43,7 @@ export function ChildCCStatusBadge({ state, className, showIcon = true }: ChildC
           variant: 'destructive' as const,
           icon: AlertCircle,
           className: 'bg-orange-100 text-orange-700',
-          pulse: true
+          pulse: true,
         };
       case 'executing_tool':
         return {
@@ -51,14 +51,14 @@ export function ChildCCStatusBadge({ state, className, showIcon = true }: ChildC
           variant: 'default' as const,
           icon: Play,
           className: 'bg-purple-100 text-purple-700',
-          animate: true
+          animate: true,
         };
       default:
         return {
           label: '不明',
           variant: 'outline' as const,
           icon: AlertCircle,
-          className: ''
+          className: '',
         };
     }
   };
@@ -67,7 +67,7 @@ export function ChildCCStatusBadge({ state, className, showIcon = true }: ChildC
   const Icon = config.icon;
 
   return (
-    <Badge 
+    <Badge
       variant={config.variant}
       className={cn(
         'flex items-center gap-1 transition-all',

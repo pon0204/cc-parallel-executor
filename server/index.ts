@@ -1,13 +1,13 @@
 import 'dotenv/config';
-import express from 'express';
 import { createServer } from 'http';
-import { Server as SocketIOServer } from 'socket.io';
 import cors from 'cors';
+import express from 'express';
+import { Server as SocketIOServer } from 'socket.io';
+import { apiRouter } from './api/index.js';
+import { CCService } from './services/cc.service.js';
+import { TerminalService } from './services/terminal.service.js';
 import { logger } from './utils/logger.js';
 import { prisma } from './utils/prisma.js';
-import { apiRouter } from './api/index.js';
-import { TerminalService } from './services/terminal.service.js';
-import { CCService } from './services/cc.service.js';
 
 const app = express();
 const server = createServer(app);
@@ -33,6 +33,11 @@ app.get('/health', (req, res) => {
 // Initialize services
 const terminalService = new TerminalService(io);
 const ccService = new CCService(io);
+
+// Make services available to API routes
+app.set('io', io);
+app.set('terminalService', terminalService);
+app.set('ccService', ccService);
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {

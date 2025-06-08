@@ -1,16 +1,23 @@
 'use client';
 
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { FolderOpen, Loader2 } from 'lucide-react';
-import { CreateProjectSchema, type CreateProjectInput } from '@/lib/api/client';
+import { type CreateProjectInput, CreateProjectSchema } from '@/lib/api/client';
 import { useCreateProject } from '@/lib/hooks/useProjects';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { FolderOpen, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
 
 interface CreateProjectDialogProps {
   open: boolean;
@@ -20,7 +27,7 @@ interface CreateProjectDialogProps {
 export function CreateProjectDialog({ open, onOpenChange }: CreateProjectDialogProps) {
   const router = useRouter();
   const createProject = useCreateProject();
-  
+
   const {
     register,
     handleSubmit,
@@ -58,9 +65,7 @@ export function CreateProjectDialog({ open, onOpenChange }: CreateProjectDialogP
         <form onSubmit={handleSubmit(onSubmit)}>
           <DialogHeader>
             <DialogTitle>新規プロジェクト作成</DialogTitle>
-            <DialogDescription>
-              Claude Codeを起動するプロジェクトを作成します
-            </DialogDescription>
+            <DialogDescription>Claude Codeを起動するプロジェクトを作成します</DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
@@ -72,9 +77,7 @@ export function CreateProjectDialog({ open, onOpenChange }: CreateProjectDialogP
                 {...register('name')}
                 className={errors.name ? 'border-destructive' : ''}
               />
-              {errors.name && (
-                <p className="text-sm text-destructive">{errors.name.message}</p>
-              )}
+              {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
             </div>
 
             <div className="space-y-2">

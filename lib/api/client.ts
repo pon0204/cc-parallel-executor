@@ -13,12 +13,9 @@ export class ApiError extends Error {
   }
 }
 
-async function fetchApi<T>(
-  endpoint: string,
-  options?: RequestInit
-): Promise<T> {
+async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
-  
+
   try {
     const response = await fetch(url, {
       ...options,
@@ -47,10 +44,7 @@ async function fetchApi<T>(
     if (error instanceof ApiError) {
       throw error;
     }
-    throw new ApiError(
-      error instanceof Error ? error.message : 'Network error',
-      0
-    );
+    throw new ApiError(error instanceof Error ? error.message : 'Network error', 0);
   }
 }
 
@@ -64,11 +58,13 @@ export const ProjectSchema = z.object({
   configJson: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
-  _count: z.object({
-    tasks: z.number(),
-    requirements: z.number(),
-    features: z.number(),
-  }).optional(),
+  _count: z
+    .object({
+      tasks: z.number(),
+      requirements: z.number(),
+      features: z.number(),
+    })
+    .optional(),
 });
 
 export type Project = z.infer<typeof ProjectSchema>;
@@ -173,7 +169,7 @@ export const api = {
   projects: {
     list: () => fetchApi<Project[]>('/projects'),
     get: (id: string) => fetchApi<Project>(`/projects/${id}`),
-    create: (data: CreateProjectInput) => 
+    create: (data: CreateProjectInput) =>
       fetchApi<Project>('/projects', {
         method: 'POST',
         body: JSON.stringify(data),
@@ -187,18 +183,14 @@ export const api = {
       fetchApi<void>(`/projects/${id}${force ? '?force=true' : ''}`, {
         method: 'DELETE',
       }),
-    getRequirements: (id: string) =>
-      fetchApi<Requirement[]>(`/projects/${id}/requirements`),
-    getTasks: (id: string) =>
-      fetchApi<Task[]>(`/projects/${id}/tasks`),
+    getRequirements: (id: string) => fetchApi<Requirement[]>(`/projects/${id}/requirements`),
+    getTasks: (id: string) => fetchApi<Task[]>(`/projects/${id}/tasks`),
   },
 
   // Tasks
   tasks: {
-    listByProject: (projectId: string) => 
-      fetchApi<Task[]>(`/tasks/project/${projectId}`),
-    get: (id: string) => 
-      fetchApi<Task>(`/tasks/${id}`),
+    listByProject: (projectId: string) => fetchApi<Task[]>(`/tasks/project/${projectId}`),
+    get: (id: string) => fetchApi<Task>(`/tasks/${id}`),
     create: (data: CreateTaskInput) =>
       fetchApi<Task>('/tasks', {
         method: 'POST',
@@ -223,8 +215,7 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify({ status }),
       }),
-    getReady: (projectId: string) =>
-      fetchApi<Task[]>(`/tasks/ready/${projectId}`),
+    getReady: (projectId: string) => fetchApi<Task[]>(`/tasks/ready/${projectId}`),
     addDependency: (id: string, dependencyTaskId: string, dependencyType?: string) =>
       fetchApi<any>(`/tasks/${id}/dependencies`, {
         method: 'POST',
@@ -240,8 +231,7 @@ export const api = {
   requirements: {
     listByProject: (projectId: string) =>
       fetchApi<Requirement[]>(`/requirements/project/${projectId}`),
-    get: (id: string) =>
-      fetchApi<Requirement>(`/requirements/${id}`),
+    get: (id: string) => fetchApi<Requirement>(`/requirements/${id}`),
     create: (data: CreateRequirementInput) =>
       fetchApi<Requirement>('/requirements', {
         method: 'POST',
@@ -265,7 +255,8 @@ export const api = {
 
   // CC instances
   cc: {
-    list: (projectId?: string) => fetchApi<CCInstance[]>(`/cc${projectId ? `?projectId=${projectId}` : ''}`),
+    list: (projectId?: string) =>
+      fetchApi<CCInstance[]>(`/cc${projectId ? `?projectId=${projectId}` : ''}`),
     get: (id: string) => fetchApi<CCInstance>(`/cc/${id}`),
     createParent: (projectId: string, name?: string) =>
       fetchApi<CCInstance>('/cc/parent', {
@@ -290,6 +281,10 @@ export const api = {
       }),
     heartbeat: (id: string) =>
       fetchApi<{ success: boolean; lastHeartbeat: string }>(`/cc/${id}/heartbeat`, {
+        method: 'POST',
+      }),
+    stop: (id: string) =>
+      fetchApi<{ success: boolean; instanceId: string }>(`/cc/${id}/stop`, {
         method: 'POST',
       }),
   },

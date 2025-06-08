@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
+import { Terminal } from '@xterm/xterm';
+import { useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
 import '@xterm/xterm/css/xterm.css';
@@ -17,7 +17,14 @@ interface CCTerminalProps {
   onExit?: () => void;
 }
 
-export function CCTerminal({ instanceId, type, socketUrl, existingSocket, onReady, onExit }: CCTerminalProps) {
+export function CCTerminal({
+  instanceId,
+  type,
+  socketUrl,
+  existingSocket,
+  onReady,
+  onExit,
+}: CCTerminalProps) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const [terminal, setTerminal] = useState<Terminal | null>(null);
   const [_socket, setSocket] = useState<Socket | null>(null);
@@ -128,7 +135,7 @@ export function CCTerminal({ instanceId, type, socketUrl, existingSocket, onRead
 
     socketInstance.on('session-created', (data) => {
       const sessionId = typeof data === 'string' ? data : data?.sessionId || 'unknown';
-      
+
       // Show initial prompt for parent CC only once
       if (type === 'parent' && !sessionInitialized) {
         setSessionInitialized(true);
@@ -139,7 +146,7 @@ export function CCTerminal({ instanceId, type, socketUrl, existingSocket, onRead
         term.writeln(`${type.toUpperCase()} CC Terminal Session: ${sessionId}`);
         term.writeln('Starting Claude Code...');
       }
-      
+
       onReady?.();
     });
 
@@ -147,13 +154,25 @@ export function CCTerminal({ instanceId, type, socketUrl, existingSocket, onRead
       term.write(`\r\n[Terminal Error: ${error}]\r\n`);
     });
 
-    socketInstance.on('exit', ({ code, signal }: { code: number | null; signal: string | null }) => {
-      const exitMessage = signal 
-        ? `[Process terminated by signal ${signal}]`
-        : `[Process exited with code ${code}]`;
-      term.write(`\r\n${exitMessage}\r\n`);
-      onExit?.();
-    });
+    socketInstance.on(
+      'exit',
+      ({ code, signal }: { code: number | null; signal: string | null }) => {
+        const exitMessage = signal
+          ? `[Process terminated by signal ${signal}]`
+          : `[Process exited with code ${code}]`;
+        term.write(`\r\n${exitMessage}\r\n`);
+        onExit?.();
+      }
+    );
+
+    // Handle CC termination from server
+    socketInstance.on(
+      'terminate-cc',
+      ({ instanceId, reason }: { instanceId: string; reason: string }) => {
+        term.write(`\r\n[CC Instance ${instanceId} terminated: ${reason}]\r\n`);
+        onExit?.();
+      }
+    );
 
     // CC-specific events (kept for future use)
 

@@ -1,14 +1,14 @@
 'use client';
 
-import { Plus, FolderOpen, Activity } from 'lucide-react';
+import { CreateProjectDialog } from '@/components/dashboard/create-project-dialog';
+import { ProjectCard } from '@/components/dashboard/project-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useProjects } from '@/lib/hooks/useProjects';
-import { ProjectCard } from '@/components/dashboard/project-card';
-import { CreateProjectDialog } from '@/components/dashboard/create-project-dialog';
 import { toast } from '@/components/ui/use-toast';
 import { api } from '@/lib/api/client';
+import { useProjects } from '@/lib/hooks/useProjects';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Activity, FolderOpen, Plus } from 'lucide-react';
 import { useState } from 'react';
 
 export default function DashboardPage() {
@@ -19,17 +19,17 @@ export default function DashboardPage() {
 
   // Delete project mutation
   const deleteProjectMutation = useMutation({
-    mutationFn: ({ projectId, force }: { projectId: string; force?: boolean }) => 
+    mutationFn: ({ projectId, force }: { projectId: string; force?: boolean }) =>
       api.projects.delete(projectId, force),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       toast({ title: 'プロジェクトを削除しました' });
     },
     onError: (error) => {
-      toast({ 
-        title: 'エラー', 
-        description: 'プロジェクトの削除に失敗しました', 
-        variant: 'destructive' 
+      toast({
+        title: 'エラー',
+        description: 'プロジェクトの削除に失敗しました',
+        variant: 'destructive',
       });
     },
   });
@@ -38,9 +38,10 @@ export default function DashboardPage() {
     deleteProjectMutation.mutate({ projectId, force });
   };
 
-  const filteredProjects = projects?.filter((project) =>
-    project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    project.description?.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredProjects = projects?.filter(
+    (project) =>
+      project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      project.description?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   if (error) {
@@ -48,7 +49,9 @@ export default function DashboardPage() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
           <h2 className="text-2xl font-semibold text-destructive">エラーが発生しました</h2>
-          <p className="text-muted-foreground">{error instanceof Error ? error.message : '不明なエラー'}</p>
+          <p className="text-muted-foreground">
+            {error instanceof Error ? error.message : '不明なエラー'}
+          </p>
         </div>
       </div>
     );
@@ -67,7 +70,7 @@ export default function DashboardPage() {
             <div className="flex items-center gap-4">
               <Activity className="h-5 w-5 text-green-500" />
               <span className="text-sm text-muted-foreground">
-                アクティブ: {projects?.filter(p => p.status === 'active').length || 0}
+                アクティブ: {projects?.filter((p) => p.status === 'active').length || 0}
               </span>
             </div>
           </div>
@@ -104,7 +107,9 @@ export default function DashboardPage() {
             <FolderOpen className="h-16 w-16 text-muted-foreground mx-auto" />
             <h3 className="text-xl font-semibold">プロジェクトがありません</h3>
             <p className="text-muted-foreground">
-              {searchQuery ? '検索条件に一致するプロジェクトが見つかりません' : '新規プロジェクトを作成してください'}
+              {searchQuery
+                ? '検索条件に一致するプロジェクトが見つかりません'
+                : '新規プロジェクトを作成してください'}
             </p>
             {!searchQuery && (
               <Button onClick={() => setIsCreateOpen(true)} className="mt-4">
@@ -116,11 +121,7 @@ export default function DashboardPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredProjects?.map((project) => (
-              <ProjectCard 
-                key={project.id} 
-                project={project} 
-                onDelete={handleDeleteProject}
-              />
+              <ProjectCard key={project.id} project={project} onDelete={handleDeleteProject} />
             ))}
           </div>
         )}
@@ -135,7 +136,7 @@ export default function DashboardPage() {
               </div>
               <div className="text-center">
                 <div className="text-3xl font-bold text-green-500">
-                  {projects.filter(p => p.status === 'active').length}
+                  {projects.filter((p) => p.status === 'active').length}
                 </div>
                 <div className="text-sm text-muted-foreground">アクティブ</div>
               </div>

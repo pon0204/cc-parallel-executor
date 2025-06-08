@@ -1,20 +1,33 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, FileText } from 'lucide-react';
 import type { Requirement } from '@/lib/api/client';
+import { FileText, Plus } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 
 interface RequirementDialogProps {
   projectId: string;
   requirement?: Requirement;
   onSave: (requirement: Partial<Requirement>) => Promise<void>;
-  trigger?: React.ReactNode;
+  trigger?: ReactNode;
 }
 
 const requirementTypes = [
@@ -35,11 +48,11 @@ const statusOptions = [
   { value: 'rejected', label: '却下' },
 ];
 
-export function RequirementDialog({ 
-  projectId, 
-  requirement, 
-  onSave, 
-  trigger 
+export function RequirementDialog({
+  projectId,
+  requirement,
+  onSave,
+  trigger,
 }: RequirementDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -100,9 +113,7 @@ export function RequirementDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {trigger || defaultTrigger}
-      </DialogTrigger>
+      <DialogTrigger asChild>{trigger || defaultTrigger}</DialogTrigger>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -116,7 +127,10 @@ export function RequirementDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="type">タイプ</Label>
-              <Select value={formData.type} onValueChange={(value) => setFormData({ ...formData, type: value })}>
+              <Select
+                value={formData.type}
+                onValueChange={(value) => setFormData({ ...formData, type: value })}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -132,7 +146,10 @@ export function RequirementDialog({
 
             <div className="space-y-2">
               <Label htmlFor="status">ステータス</Label>
-              <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
+              <Select
+                value={formData.status}
+                onValueChange={(value) => setFormData({ ...formData, status: value })}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -173,7 +190,12 @@ export function RequirementDialog({
           {/* Priority */}
           <div className="space-y-2">
             <Label htmlFor="priority">優先度</Label>
-            <Select value={formData.priority.toString()} onValueChange={(value) => setFormData({ ...formData, priority: parseInt(value) })}>
+            <Select
+              value={formData.priority.toString()}
+              onValueChange={(value) =>
+                setFormData({ ...formData, priority: Number.parseInt(value) })
+              }
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -192,7 +214,10 @@ export function RequirementDialog({
             <Button variant="outline" onClick={() => setOpen(false)}>
               キャンセル
             </Button>
-            <Button onClick={handleSave} disabled={loading || !formData.title.trim() || !formData.content.trim()}>
+            <Button
+              onClick={handleSave}
+              disabled={loading || !formData.title.trim() || !formData.content.trim()}
+            >
               {loading ? '保存中...' : requirement ? '更新' : '作成'}
             </Button>
           </div>

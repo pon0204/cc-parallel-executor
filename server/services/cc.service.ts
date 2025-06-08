@@ -1,11 +1,11 @@
-import type { Server as SocketIOServer, Socket } from 'socket.io';
+import path from 'path';
 import { execa } from 'execa';
+import type { Socket, Server as SocketIOServer } from 'socket.io';
 import { logger } from '../utils/logger.js';
 import { prisma } from '../utils/prisma.js';
+import { ClaudeState } from './claude-output-analyzer.js';
 import { TerminalService } from './terminal.service.js';
 import { WorktreeService } from './worktree.service.js';
-import { ClaudeState } from './claude-output-analyzer.js';
-import path from 'path';
 
 interface CCSession {
   instanceId: string;
@@ -28,15 +28,18 @@ export class CCService {
     this.worktreeService = new WorktreeService();
   }
 
-  async createParentCC(socket: Socket, data: {
-    instanceId: string;
-    projectId: string;
-    workdir: string;
-    options?: { cols?: number; rows?: number; };
-  }) {
+  async createParentCC(
+    socket: Socket,
+    data: {
+      instanceId: string;
+      projectId: string;
+      workdir: string;
+      options?: { cols?: number; rows?: number };
+    }
+  ) {
     try {
       const { instanceId, projectId, workdir, options } = data;
-      
+
       // Get project details
       const project = await prisma.project.findUnique({
         where: { id: projectId },
@@ -108,10 +111,10 @@ export class CCService {
         projectId,
         workdir,
       });
-      
+
       logger.info('Parent CC created, waiting for frontend to start Claude Code:', {
         instanceId: instance.id,
-        socketId: socket.id
+        socketId: socket.id,
       });
 
       socket.emit('cc:parent-ready', {
@@ -120,22 +123,25 @@ export class CCService {
       });
     } catch (error) {
       logger.error('Failed to create parent CC:', error);
-      socket.emit('cc:error', { 
+      socket.emit('cc:error', {
         message: 'Failed to create parent CC',
         error: error instanceof Error ? error.message : 'Unknown error',
       });
     }
   }
 
-  async createChildCC(socket: Socket, data: {
-    parentInstanceId: string;
-    taskId: string;
-    instruction: string;
-  }) {
+  async createChildCC(
+    socket: Socket,
+    data: {
+      parentInstanceId: string;
+      taskId: string;
+      instruction: string;
+    }
+  ) {
     try {
       // Get parent CC session
       const parentSession = Array.from(this.sessions.values()).find(
-        s => s.instanceId === data.parentInstanceId
+        (s) => s.instanceId === data.parentInstanceId
       );
 
       if (!parentSession) {
@@ -175,7 +181,7 @@ export class CCService {
       // Update task assignment
       await prisma.task.update({
         where: { id: task.id },
-        data: { 
+        data: {
           assignedTo: instance.id,
           status: 'running',
           startedAt: new Date(),
@@ -215,8 +221,8 @@ export class CCService {
         this.terminalService.sendData(socket.id, ultrathinkInstruction + '\n');
       }, 6000); // Give Claude time to auto-start
 
-      logger.info('Child CC created:', { 
-        instanceId: instance.id, 
+      logger.info('Child CC created:', {
+        instanceId: instance.id,
         taskId: task.id,
         worktreePath,
       });
@@ -242,7 +248,7 @@ export class CCService {
       });
     } catch (error) {
       logger.error('Failed to create child CC:', error);
-      socket.emit('cc:error', { 
+      socket.emit('cc:error', {
         message: 'Failed to create child CC',
         error: error instanceof Error ? error.message : 'Unknown error',
       });
@@ -264,7 +270,7 @@ export class CCService {
       if (session.type === 'child' && session.taskId) {
         await prisma.task.update({
           where: { id: session.taskId },
-          data: { 
+          data: {
             status: 'completed',
             completedAt: new Date(),
           },
@@ -291,8 +297,8 @@ export class CCService {
       }
 
       this.sessions.delete(socketId);
-      logger.info('CC destroyed:', { 
-        instanceId: session.instanceId, 
+      logger.info('CC destroyed:', {
+        instanceId: session.instanceId,
         type: session.type,
       });
     } catch (error) {
@@ -307,60 +313,60 @@ export class CCService {
     // Claude状態変化イベントをリッスン
     socket.on('claude:waiting-for-input', async (data) => {
       logger.info('Child CC waiting for input:', data);
-      
+
       // 親に通知
       const session = this.sessions.get(socket.id);
       if (session && session.type === 'child') {
         const parentSession = Array.from(this.sessions.values()).find(
-          s => s.type === 'parent' && s.projectId === session.projectId
+          (s) => s.type === 'parent' && s.projectId === session.projectId
         );
-        
+
         if (parentSession) {
           this.io.to(parentSession.socketId).emit('child-cc:waiting-for-input', {
             childInstanceId: instanceId,
             taskId: session.taskId,
             context: data.context,
-            timestamp: data.timestamp
+            timestamp: data.timestamp,
           });
         }
       }
-      
+
       // ダッシュボードに通知（ブロードキャスト）
       this.io.emit('dashboard:child-cc-needs-input', {
         instanceId,
         taskId: session?.taskId,
-        context: data.context
+        context: data.context,
       });
     });
 
     socket.on('claude:response-complete', async (data) => {
       logger.info('Child CC response complete:', data);
-      
+
       const session = this.sessions.get(socket.id);
       if (session && session.type === 'child') {
         // アクションが必要かチェック
         if (data.actionNeeded?.needed) {
           // 親に通知
           const parentSession = Array.from(this.sessions.values()).find(
-            s => s.type === 'parent' && s.projectId === session.projectId
+            (s) => s.type === 'parent' && s.projectId === session.projectId
           );
-          
+
           if (parentSession) {
             this.io.to(parentSession.socketId).emit('child-cc:action-required', {
               childInstanceId: instanceId,
               taskId: session.taskId,
               actionType: data.actionNeeded.type,
               confidence: data.actionNeeded.confidence,
-              context: data.context
+              context: data.context,
             });
           }
-          
+
           // ダッシュボードに通知
           this.io.emit('dashboard:child-cc-action-required', {
             instanceId,
             taskId: session.taskId,
             actionType: data.actionNeeded.type,
-            context: data.context
+            context: data.context,
           });
         }
       }
@@ -369,8 +375,9 @@ export class CCService {
 
   private prepareParentContext(project: any): string {
     const taskSummary = project.tasks
-      .map((task: any, index: number) => 
-        `${index + 1}. ${task.name} (優先度: ${task.priority}, タイプ: ${task.taskType})`
+      .map(
+        (task: any, index: number) =>
+          `${index + 1}. ${task.name} (優先度: ${task.priority}, タイプ: ${task.taskType})`
       )
       .join('\n');
 
@@ -402,7 +409,11 @@ ${taskSummary}
    * Format ultrathink instruction for child CC
    * All parent-to-child instructions must start with "ultrathink"
    */
-  private formatUltrathinkInstruction(instruction: string, task: any, worktreePath: string): string {
+  private formatUltrathinkInstruction(
+    instruction: string,
+    task: any,
+    worktreePath: string
+  ): string {
     return `ultrathink
 
 Task Assignment: ${task.name}
@@ -426,7 +437,7 @@ Please execute this task in the assigned worktree. Report your progress and any 
    */
   async sendUltrathinkMessage(childInstanceId: string, message: string): Promise<void> {
     const childSession = Array.from(this.sessions.values()).find(
-      s => s.instanceId === childInstanceId && s.type === 'child'
+      (s) => s.instanceId === childInstanceId && s.type === 'child'
     );
 
     if (!childSession) {
@@ -440,9 +451,9 @@ ${message}
 `;
 
     this.terminalService.sendData(childSession.socketId, ultrathinkMessage);
-    logger.info('Ultrathink message sent to child CC:', { 
-      childInstanceId, 
-      messageLength: message.length 
+    logger.info('Ultrathink message sent to child CC:', {
+      childInstanceId,
+      messageLength: message.length,
     });
   }
 
@@ -458,12 +469,12 @@ ${message}
     // Log the response and potentially relay it to parent CC
     logger.info('Ultrathink response from child CC:', {
       instanceId: session.instanceId,
-      responseLength: response.length
+      responseLength: response.length,
     });
 
     // Find parent CC and relay the response
     const parentSession = Array.from(this.sessions.values()).find(
-      s => s.type === 'parent' && s.projectId === session.projectId
+      (s) => s.type === 'parent' && s.projectId === session.projectId
     );
 
     if (parentSession) {
@@ -503,15 +514,12 @@ ${message}
       }
 
       // Create worktree
-      const worktreePath = await this.worktreeService.createWorktree(
-        projectWorkdir,
-        worktreeName
-      );
+      const worktreePath = await this.worktreeService.createWorktree(projectWorkdir, worktreeName);
 
       // Update CC instance with worktree path
       await prisma.cCInstance.update({
         where: { id: instanceId },
-        data: { 
+        data: {
           worktreePath,
           status: 'running',
         },
@@ -523,8 +531,8 @@ ${message}
         data: { worktreePath },
       });
 
-      logger.info('Child CC setup completed:', { 
-        instanceId, 
+      logger.info('Child CC setup completed:', {
+        instanceId,
         taskId,
         worktreePath,
       });
@@ -532,10 +540,9 @@ ${message}
       if (sessionId) {
         logger.info(`[MCP:${sessionId}] Child CC ${instanceId} setup completed`);
       }
-
     } catch (error) {
       logger.error('Failed to start child CC:', error);
-      
+
       // Update instance status to error
       await prisma.cCInstance.update({
         where: { id: options.instanceId },
@@ -560,13 +567,55 @@ ${message}
   /**
    * すべての子CCの状態を取得
    */
-  getAllChildCCStates(): Array<{instanceId: string, state: ClaudeState}> {
+  getAllChildCCStates(): Array<{ instanceId: string; state: ClaudeState }> {
     return Array.from(this.sessions.values())
-      .filter(s => s.type === 'child')
-      .map(s => ({
+      .filter((s) => s.type === 'child')
+      .map((s) => ({
         instanceId: s.instanceId,
-        state: this.terminalService.getClaudeStateByInstanceId(s.instanceId) || ClaudeState.IDLE
+        state: this.terminalService.getClaudeStateByInstanceId(s.instanceId) || ClaudeState.IDLE,
       }));
   }
-}
 
+  /**
+   * タスクに関連するCCインスタンスを停止
+   */
+  async stopCCForTask(taskId: string): Promise<void> {
+    try {
+      // Find all sessions related to this task
+      const taskSessions = Array.from(this.sessions.entries()).filter(
+        ([_, session]) => session.taskId === taskId
+      );
+
+      for (const [socketId, session] of taskSessions) {
+        logger.info('Stopping CC instance for task:', {
+          taskId,
+          instanceId: session.instanceId,
+          socketId,
+        });
+
+        // Destroy the terminal
+        this.terminalService.destroyTerminal(socketId);
+
+        // Remove from sessions
+        this.sessions.delete(socketId);
+
+        // Update database
+        await prisma.cCInstance.update({
+          where: { id: session.instanceId },
+          data: { status: 'stopped' },
+        });
+
+        // Clean up worktree if configured
+        if (session.worktreePath && process.env.AUTO_CLEANUP_WORKTREE === 'true') {
+          await this.worktreeService.removeWorktree(
+            path.dirname(session.worktreePath),
+            path.basename(session.worktreePath)
+          );
+        }
+      }
+    } catch (error) {
+      logger.error('Failed to stop CC for task:', error);
+      throw error;
+    }
+  }
+}

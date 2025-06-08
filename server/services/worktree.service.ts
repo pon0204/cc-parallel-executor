@@ -1,5 +1,5 @@
-import { execa } from 'execa';
 import path from 'path';
+import { execa } from 'execa';
 import fs from 'fs/promises';
 import { logger } from '../utils/logger.js';
 
@@ -32,21 +32,25 @@ export class WorktreeService {
       }
 
       // Get current branch
-      const { stdout: currentBranch } = await execa('git', ['branch', '--show-current'], { 
-        cwd: projectPath 
+      const { stdout: currentBranch } = await execa('git', ['branch', '--show-current'], {
+        cwd: projectPath,
       });
 
       // Create a unique branch name for this worktree
       const branchName = `${worktreeName}-branch`;
-      
-      // Create new worktree with a new branch based on current branch
-      await execa('git', ['worktree', 'add', '-b', branchName, worktreePath, currentBranch.trim()], {
-        cwd: projectPath,
-      });
 
-      logger.info('Worktree created:', { 
-        projectPath, 
-        worktreeName, 
+      // Create new worktree with a new branch based on current branch
+      await execa(
+        'git',
+        ['worktree', 'add', '-b', branchName, worktreePath, currentBranch.trim()],
+        {
+          cwd: projectPath,
+        }
+      );
+
+      logger.info('Worktree created:', {
+        projectPath,
+        worktreeName,
         worktreePath,
         branch: branchName,
         baseBranch: currentBranch.trim(),
@@ -55,7 +59,9 @@ export class WorktreeService {
       return worktreePath;
     } catch (error) {
       logger.error('Failed to create worktree:', error);
-      throw new Error(`Failed to create worktree: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to create worktree: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -85,7 +91,9 @@ export class WorktreeService {
     }
   }
 
-  async listWorktrees(projectPath: string): Promise<Array<{ path: string; branch: string; commit: string }>> {
+  async listWorktrees(
+    projectPath: string
+  ): Promise<Array<{ path: string; branch: string; commit: string }>> {
     try {
       const { stdout } = await execa('git', ['worktree', 'list', '--porcelain'], {
         cwd: projectPath,
@@ -93,7 +101,7 @@ export class WorktreeService {
 
       const worktrees: Array<{ path: string; branch: string; commit: string }> = [];
       const lines = stdout.split('\n');
-      
+
       let currentWorktree: any = {};
       for (const line of lines) {
         if (line.startsWith('worktree ')) {
@@ -107,7 +115,7 @@ export class WorktreeService {
           currentWorktree.branch = line.substring(7);
         }
       }
-      
+
       if (currentWorktree.path) {
         worktrees.push(currentWorktree);
       }

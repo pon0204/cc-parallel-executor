@@ -1,6 +1,6 @@
+import type { CCInstance, Project, Task } from '@/lib/api/client';
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
-import type { Project, Task, CCInstance } from '@/lib/api/client';
 
 interface ProjectState {
   // Current project
@@ -50,13 +50,10 @@ export const useProjectStore = create<ProjectState>()(
         // Projects list
         projects: [],
         setProjects: (projects) => set({ projects }),
-        addProject: (project) => 
-          set((state) => ({ projects: [...state.projects, project] })),
+        addProject: (project) => set((state) => ({ projects: [...state.projects, project] })),
         updateProject: (id, updates) =>
           set((state) => ({
-            projects: state.projects.map((p) =>
-              p.id === id ? { ...p, ...updates } : p
-            ),
+            projects: state.projects.map((p) => (p.id === id ? { ...p, ...updates } : p)),
             currentProject:
               state.currentProject?.id === id
                 ? { ...state.currentProject, ...updates }
@@ -65,8 +62,7 @@ export const useProjectStore = create<ProjectState>()(
         removeProject: (id) =>
           set((state) => ({
             projects: state.projects.filter((p) => p.id !== id),
-            currentProject:
-              state.currentProject?.id === id ? null : state.currentProject,
+            currentProject: state.currentProject?.id === id ? null : state.currentProject,
           })),
 
         // Tasks
@@ -74,9 +70,7 @@ export const useProjectStore = create<ProjectState>()(
         setTasks: (tasks) => set({ tasks }),
         updateTask: (id, updates) =>
           set((state) => ({
-            tasks: state.tasks.map((t) =>
-              t.id === id ? { ...t, ...updates } : t
-            ),
+            tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...updates } : t)),
           })),
 
         // CC instances
@@ -86,9 +80,7 @@ export const useProjectStore = create<ProjectState>()(
           set((state) => ({ ccInstances: [...state.ccInstances, instance] })),
         updateCCInstance: (id, updates) =>
           set((state) => ({
-            ccInstances: state.ccInstances.map((i) =>
-              i.id === id ? { ...i, ...updates } : i
-            ),
+            ccInstances: state.ccInstances.map((i) => (i.id === id ? { ...i, ...updates } : i)),
           })),
         removeCCInstance: (id) =>
           set((state) => ({
@@ -101,8 +93,7 @@ export const useProjectStore = create<ProjectState>()(
 
         // Child CCs
         childCCs: [],
-        addChildCC: (instance) =>
-          set((state) => ({ childCCs: [...state.childCCs, instance] })),
+        addChildCC: (instance) => set((state) => ({ childCCs: [...state.childCCs, instance] })),
         removeChildCC: (id) =>
           set((state) => ({
             childCCs: state.childCCs.filter((i) => i.id !== id),

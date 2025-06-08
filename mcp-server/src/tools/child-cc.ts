@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
-import { v4 as uuidv4 } from 'uuid';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { v4 as uuidv4 } from 'uuid';
 import type { ChildCCOptions, ChildCCResult, Task } from '../types.js';
 
 export class ChildCCManager {
@@ -45,7 +45,6 @@ export class ChildCCManager {
         status: 'created',
         message: `Child CC ${instanceId} created successfully at ${worktreePath}`,
       };
-
     } catch (error) {
       console.error('Failed to create child CC:', error);
       return {
@@ -89,7 +88,11 @@ export class ChildCCManager {
     }
   }
 
-  private async createGitWorktree(projectWorkdir: string, worktreePath: string, worktreeName: string): Promise<void> {
+  private async createGitWorktree(
+    projectWorkdir: string,
+    worktreePath: string,
+    worktreeName: string
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       const gitProcess = spawn('git', ['worktree', 'add', worktreePath, 'HEAD'], {
         cwd: projectWorkdir,
@@ -118,7 +121,11 @@ export class ChildCCManager {
     });
   }
 
-  private async startChildCCProcess(instanceId: string, worktreePath: string, options: ChildCCOptions): Promise<void> {
+  private async startChildCCProcess(
+    instanceId: string,
+    worktreePath: string,
+    options: ChildCCOptions
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       // Claude Codeを起動するコマンド
       const ccProcess = spawn('claude', [], {
@@ -135,12 +142,12 @@ export class ChildCCManager {
       // プロセス起動の確認
       ccProcess.on('spawn', () => {
         console.log(`Child CC process started: ${instanceId}`);
-        
+
         // ultrathinkプロトコルでタスク指示を送信
         const ultrathinkInstruction = this.formatUltrathinkInstruction(options);
         ccProcess.stdin?.write(ultrathinkInstruction);
         ccProcess.stdin?.end();
-        
+
         resolve();
       });
 

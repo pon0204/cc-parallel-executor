@@ -1,9 +1,9 @@
-import type { Server as SocketIOServer, Socket } from 'socket.io';
-import { logger } from '../utils/logger.js';
 import { platform } from 'os';
-import { ClaudeOutputAnalyzer, ClaudeState } from './claude-output-analyzer.js';
+import { type IPty, spawn as ptySpawn } from 'node-pty';
+import type { Socket, Server as SocketIOServer } from 'socket.io';
+import { logger } from '../utils/logger.js';
 import { prisma } from '../utils/prisma.js';
-import { spawn as ptySpawn, type IPty } from 'node-pty';
+import { ClaudeOutputAnalyzer, ClaudeState } from './claude-output-analyzer.js';
 
 interface TerminalSession {
   proc: IPty;
@@ -23,16 +23,19 @@ export class TerminalService {
     this.io = io;
   }
 
-  async createTerminal(socket: Socket, options?: {
-    workdir?: string;
-    cols?: number;
-    rows?: number;
-    env?: Record<string, string>;
-  }) {
+  async createTerminal(
+    socket: Socket,
+    options?: {
+      workdir?: string;
+      cols?: number;
+      rows?: number;
+      env?: Record<string, string>;
+    }
+  ) {
     try {
       const shell = platform() === 'win32' ? 'cmd.exe' : '/bin/bash';
       let cwd = options?.workdir || process.cwd();
-      
+
       // For child CC instances, lookup the worktree path from database
       if (options?.env?.CC_INSTANCE_ID && options?.env?.CC_TYPE === 'child') {
         try {
@@ -40,12 +43,12 @@ export class TerminalService {
             where: { id: options.env.CC_INSTANCE_ID },
             select: { worktreePath: true },
           });
-          
+
           if (ccInstance?.worktreePath) {
             cwd = ccInstance.worktreePath;
-            logger.info('Using worktree path for child CC:', { 
-              instanceId: options.env.CC_INSTANCE_ID, 
-              worktreePath: cwd 
+            logger.info('Using worktree path for child CC:', {
+              instanceId: options.env.CC_INSTANCE_ID,
+              worktreePath: cwd,
             });
           }
         } catch (error) {
@@ -73,7 +76,7 @@ export class TerminalService {
           // Ink/React compatibility for Claude Code
           CI: undefined, // Remove CI flag that disables interactive mode
           FORCE_INTERACTIVE: '1',
-        }
+        },
       });
 
       const sessionId = `session-${Date.now()}`;
@@ -89,7 +92,7 @@ export class TerminalService {
       if (options?.env?.CC_INSTANCE_ID) {
         session.analyzer = new ClaudeOutputAnalyzer(options.env.CC_INSTANCE_ID, {
           idleTimeoutMs: 3000,
-          checkIntervalMs: 500
+          checkIntervalMs: 500,
         });
 
         // 状態変化のハンドラー
@@ -101,7 +104,7 @@ export class TerminalService {
             socket.emit('claude:waiting-for-input', {
               instanceId: event.instanceId,
               timestamp: event.timestamp,
-              context: session.analyzer?.getLastOutput(500)
+              context: session.analyzer?.getLastOutput(500),
             });
           } else if (event.from === ClaudeState.RESPONDING && event.to === ClaudeState.IDLE) {
             const actionCheck = session.analyzer?.detectActionNeeded();
@@ -109,7 +112,7 @@ export class TerminalService {
               instanceId: event.instanceId,
               timestamp: event.timestamp,
               actionNeeded: actionCheck,
-              context: session.analyzer?.getLastOutput(500)
+              context: session.analyzer?.getLastOutput(500),
             });
           }
         });
@@ -130,24 +133,28 @@ export class TerminalService {
 
       // Handle exit
       proc.onExit((exitEvent: { exitCode: number; signal?: number }) => {
-        logger.info('Terminal exited:', { sessionId, exitCode: exitEvent.exitCode, signal: exitEvent.signal });
-        
+        logger.info('Terminal exited:', {
+          sessionId,
+          exitCode: exitEvent.exitCode,
+          signal: exitEvent.signal,
+        });
+
         // Analyzerをクリーンアップ
         if (session.analyzer) {
           session.analyzer.stop();
         }
-        
+
         socket.emit('session-closed', sessionId);
         this.sessions.delete(sessionId);
         this.socketToSession.delete(socket.id);
       });
 
-      logger.info('Enhanced terminal created:', { 
+      logger.info('Enhanced terminal created:', {
         sessionId,
-        socketId: socket.id, 
+        socketId: socket.id,
         pid: proc.pid,
         workdir: cwd,
-        method: 'node-pty'
+        method: 'node-pty',
       });
 
       // Send session created event
@@ -158,22 +165,25 @@ export class TerminalService {
         // Initialize terminal with proper settings
         proc.write('export TERM=xterm-256color\n');
         proc.write('clear\n');
-        
+
         // For child CC instances, automatically start Claude
         if (options?.env?.CC_TYPE === 'child') {
           setTimeout(() => {
-            logger.info('Auto-starting Claude for child CC:', { instanceId: options?.env?.CC_INSTANCE_ID });
+            logger.info('Auto-starting Claude for child CC:', {
+              instanceId: options?.env?.CC_INSTANCE_ID,
+            });
             proc.write('claude\n');
-            
+
             // Send a test message after Claude should be ready
             setTimeout(() => {
-              logger.info('Sending test prompt to Claude:', { instanceId: options?.env?.CC_INSTANCE_ID });
+              logger.info('Sending test prompt to Claude:', {
+                instanceId: options?.env?.CC_INSTANCE_ID,
+              });
               proc.write('\n'); // Send newline to potentially trigger prompt
             }, 3000);
           }, 2000);
         }
       }, 500);
-
     } catch (error) {
       logger.error('Failed to create terminal:', error);
       socket.emit('error', error instanceof Error ? error.message : 'Unknown error');
@@ -186,15 +196,15 @@ export class TerminalService {
       logger.warn('No session found for socket:', { socketId });
       return;
     }
-    
+
     const session = this.sessions.get(sessionId);
     if (session) {
       // Use node-pty write method
       session.proc.write(data);
     } else {
-      logger.warn('No terminal session found:', { 
-        sessionId, 
-        socketId
+      logger.warn('No terminal session found:', {
+        sessionId,
+        socketId,
       });
     }
   }
@@ -205,12 +215,12 @@ export class TerminalService {
       logger.warn('No session found for socket resize:', { socketId });
       return;
     }
-    
+
     const session = this.sessions.get(sessionId);
     if (session) {
       // Use node-pty resize method
       session.proc.resize(dimensions.cols, dimensions.rows);
-      
+
       logger.debug('Terminal resized:', { sessionId, socketId, ...dimensions });
     } else {
       logger.warn('No terminal session found for resize:', { sessionId, socketId });
@@ -223,7 +233,7 @@ export class TerminalService {
       logger.warn('No session found for socket destroy:', { socketId });
       return;
     }
-    
+
     const session = this.sessions.get(sessionId);
     if (session) {
       try {
@@ -231,7 +241,7 @@ export class TerminalService {
         if (session.analyzer) {
           session.analyzer.stop();
         }
-        
+
         // Use node-pty kill method
         session.proc.kill('SIGTERM');
         this.sessions.delete(sessionId);
@@ -260,9 +270,7 @@ export class TerminalService {
 
   // インスタンスIDで状態を取得
   getClaudeStateByInstanceId(instanceId: string): ClaudeState | undefined {
-    const session = Array.from(this.sessions.values()).find(
-      s => s.ccInstanceId === instanceId
-    );
+    const session = Array.from(this.sessions.values()).find((s) => s.ccInstanceId === instanceId);
     return session?.analyzer?.getState();
   }
 }

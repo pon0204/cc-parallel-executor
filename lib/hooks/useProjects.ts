@@ -1,7 +1,7 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, type CreateProjectInput } from '@/lib/api/client';
-import { useProjectStore } from '@/lib/stores/project.store';
 import { toast } from '@/components/ui/use-toast';
+import { type CreateProjectInput, api } from '@/lib/api/client';
+import { useProjectStore } from '@/lib/stores/project.store';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 export function useProjects() {
   const setProjects = useProjectStore((state) => state.setProjects);

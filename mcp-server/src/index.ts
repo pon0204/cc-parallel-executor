@@ -2,16 +2,16 @@
 
 /**
  * Claude Code Parallel MCP Server
- * 
+ *
  * This server uses STDIO mode for direct integration with Claude CLI.
  * It provides tools for managing child Claude Code instances in parallel.
  */
 
+import path from 'path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { z } from 'zod';
 import { execa } from 'execa';
-import path from 'path';
+import { z } from 'zod';
 
 // Configuration
 const PROJECT_SERVER_URL = process.env.PROJECT_SERVER_URL || 'http://localhost:8081';
@@ -30,7 +30,9 @@ const getAvailableTasksSchema = {
 
 const updateTaskStatusSchema = {
   taskId: z.string().describe('ID of the task'),
-  status: z.enum(['pending', 'queued', 'running', 'completed', 'failed']).describe('New status of the task'),
+  status: z
+    .enum(['pending', 'queued', 'running', 'completed', 'failed'])
+    .describe('New status of the task'),
   result: z.string().optional().describe('Result or output of the task execution'),
 };
 
@@ -171,135 +173,123 @@ function createMCPServer() {
   );
 
   // Tool: get_available_tasks
-  server.tool(
-    'get_available_tasks',
-    getAvailableTasksSchema,
-    async ({ projectId }) => {
-      try {
-        const response = await fetch(`${PROJECT_SERVER_URL}/api/projects/${projectId}/tasks`);
+  server.tool('get_available_tasks', getAvailableTasksSchema, async ({ projectId }) => {
+    try {
+      const response = await fetch(`${PROJECT_SERVER_URL}/api/projects/${projectId}/tasks`);
 
-        if (!response.ok) {
-          throw new Error(`Failed to fetch tasks: ${response.statusText}`);
-        }
-
-        const tasks = await response.json();
-        const availableTasks = tasks.filter((t: any) => 
-          ['pending', 'queued', 'PENDING', 'QUEUED'].includes(t.status)
-        );
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `利用可能なタスク (${availableTasks.length}/${tasks.length}):\n\n${availableTasks
-                .map(
-                  (t: any) =>
-                    `📋 ${t.id}\n   名前: ${t.name}\n   優先度: ${t.priority}\n   タイプ: ${t.taskType || 'general'}`
-                )
-                .join('\n\n')}`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `エラー: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            },
-          ],
-          isError: true,
-        };
+      if (!response.ok) {
+        throw new Error(`Failed to fetch tasks: ${response.statusText}`);
       }
+
+      const tasks = await response.json();
+      const availableTasks = tasks.filter((t: any) =>
+        ['pending', 'queued', 'PENDING', 'QUEUED'].includes(t.status)
+      );
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `利用可能なタスク (${availableTasks.length}/${tasks.length}):\n\n${availableTasks
+              .map(
+                (t: any) =>
+                  `📋 ${t.id}\n   名前: ${t.name}\n   優先度: ${t.priority}\n   タイプ: ${t.taskType || 'general'}`
+              )
+              .join('\n\n')}`,
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `エラー: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          },
+        ],
+        isError: true,
+      };
     }
-  );
+  });
 
   // Tool: update_task_status
-  server.tool(
-    'update_task_status',
-    updateTaskStatusSchema,
-    async ({ taskId, status, result }) => {
-      try {
-        const response = await fetch(`${PROJECT_SERVER_URL}/api/tasks/${taskId}/status`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            status: status.toUpperCase(),
-            outputData: result,
-          }),
-        });
+  server.tool('update_task_status', updateTaskStatusSchema, async ({ taskId, status, result }) => {
+    try {
+      const response = await fetch(`${PROJECT_SERVER_URL}/api/tasks/${taskId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: status.toUpperCase(),
+          outputData: result,
+        }),
+      });
 
-        if (!response.ok) {
-          throw new Error(`Failed to update task status: ${response.statusText}`);
-        }
-
-        const task = await response.json();
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `タスクステータスを更新しました:\n\nタスクID: ${task.id}\n新しいステータス: ${task.status}`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `エラー: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            },
-          ],
-          isError: true,
-        };
+      if (!response.ok) {
+        throw new Error(`Failed to update task status: ${response.statusText}`);
       }
+
+      const task = await response.json();
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `タスクステータスを更新しました:\n\nタスクID: ${task.id}\n新しいステータス: ${task.status}`,
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `エラー: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          },
+        ],
+        isError: true,
+      };
     }
-  );
+  });
 
   // Tool: create_project
-  server.tool(
-    'create_project',
-    createProjectSchema,
-    async ({ name, description, workdir }) => {
-      try {
-        const response = await fetch(`${PROJECT_SERVER_URL}/api/projects`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ name, description, workdir }),
-        });
+  server.tool('create_project', createProjectSchema, async ({ name, description, workdir }) => {
+    try {
+      const response = await fetch(`${PROJECT_SERVER_URL}/api/projects`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, description, workdir }),
+      });
 
-        if (!response.ok) {
-          throw new Error(`Failed to create project: ${response.statusText}`);
-        }
-
-        const project = await response.json();
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `プロジェクトを作成しました:\n\nID: ${project.id}\n名前: ${project.name}\n説明: ${project.description || 'なし'}\n作業ディレクトリ: ${project.workdir}`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `エラー: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            },
-          ],
-          isError: true,
-        };
+      if (!response.ok) {
+        throw new Error(`Failed to create project: ${response.statusText}`);
       }
+
+      const project = await response.json();
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `プロジェクトを作成しました:\n\nID: ${project.id}\n名前: ${project.name}\n説明: ${project.description || 'なし'}\n作業ディレクトリ: ${project.workdir}`,
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `エラー: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          },
+        ],
+        isError: true,
+      };
     }
-  );
+  });
 
   // Tool: update_project
   server.tool(
@@ -349,80 +339,72 @@ function createMCPServer() {
   );
 
   // Tool: delete_project
-  server.tool(
-    'delete_project',
-    deleteProjectSchema,
-    async ({ projectId, force }) => {
-      try {
-        const url = force ? 
-          `${PROJECT_SERVER_URL}/api/projects/${projectId}?force=true` : 
-          `${PROJECT_SERVER_URL}/api/projects/${projectId}`;
+  server.tool('delete_project', deleteProjectSchema, async ({ projectId, force }) => {
+    try {
+      const url = force
+        ? `${PROJECT_SERVER_URL}/api/projects/${projectId}?force=true`
+        : `${PROJECT_SERVER_URL}/api/projects/${projectId}`;
 
-        const response = await fetch(url, {
-          method: 'DELETE',
-        });
+      const response = await fetch(url, {
+        method: 'DELETE',
+      });
 
-        if (!response.ok) {
-          throw new Error(`Failed to delete project: ${response.statusText}`);
-        }
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `プロジェクトを削除しました: ${projectId}`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `エラー: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            },
-          ],
-          isError: true,
-        };
+      if (!response.ok) {
+        throw new Error(`Failed to delete project: ${response.statusText}`);
       }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `プロジェクトを削除しました: ${projectId}`,
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `エラー: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          },
+        ],
+        isError: true,
+      };
     }
-  );
+  });
 
   // Tool: get_project
-  server.tool(
-    'get_project',
-    getProjectSchema,
-    async ({ projectId }) => {
-      try {
-        const response = await fetch(`${PROJECT_SERVER_URL}/api/projects/${projectId}`);
+  server.tool('get_project', getProjectSchema, async ({ projectId }) => {
+    try {
+      const response = await fetch(`${PROJECT_SERVER_URL}/api/projects/${projectId}`);
 
-        if (!response.ok) {
-          throw new Error(`Failed to fetch project: ${response.statusText}`);
-        }
-
-        const project = await response.json();
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `プロジェクト詳細:\n\nID: ${project.id}\n名前: ${project.name}\n説明: ${project.description || 'なし'}\n作業ディレクトリ: ${project.workdir}\nタスク数: ${project.tasks?.length || 0}\n要件数: ${project.requirements?.length || 0}`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `エラー: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            },
-          ],
-          isError: true,
-        };
+      if (!response.ok) {
+        throw new Error(`Failed to fetch project: ${response.statusText}`);
       }
+
+      const project = await response.json();
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `プロジェクト詳細:\n\nID: ${project.id}\n名前: ${project.name}\n説明: ${project.description || 'なし'}\n作業ディレクトリ: ${project.workdir}\nタスク数: ${project.tasks?.length || 0}\n要件数: ${project.requirements?.length || 0}`,
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `エラー: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          },
+        ],
+        isError: true,
+      };
     }
-  );
+  });
 
   // Tool: create_task
   server.tool(
@@ -523,40 +505,36 @@ function createMCPServer() {
   );
 
   // Tool: delete_task
-  server.tool(
-    'delete_task',
-    deleteTaskSchema,
-    async ({ taskId }) => {
-      try {
-        const response = await fetch(`${PROJECT_SERVER_URL}/api/tasks/${taskId}`, {
-          method: 'DELETE',
-        });
+  server.tool('delete_task', deleteTaskSchema, async ({ taskId }) => {
+    try {
+      const response = await fetch(`${PROJECT_SERVER_URL}/api/tasks/${taskId}`, {
+        method: 'DELETE',
+      });
 
-        if (!response.ok) {
-          throw new Error(`Failed to delete task: ${response.statusText}`);
-        }
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `タスクを削除しました: ${taskId}`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `エラー: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            },
-          ],
-          isError: true,
-        };
+      if (!response.ok) {
+        throw new Error(`Failed to delete task: ${response.statusText}`);
       }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `タスクを削除しました: ${taskId}`,
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `エラー: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          },
+        ],
+        isError: true,
+      };
     }
-  );
+  });
 
   // Tool: create_requirement
   server.tool(
@@ -657,81 +635,73 @@ function createMCPServer() {
   );
 
   // Tool: delete_requirement
-  server.tool(
-    'delete_requirement',
-    deleteRequirementSchema,
-    async ({ requirementId }) => {
-      try {
-        const response = await fetch(`${PROJECT_SERVER_URL}/api/requirements/${requirementId}`, {
-          method: 'DELETE',
-        });
+  server.tool('delete_requirement', deleteRequirementSchema, async ({ requirementId }) => {
+    try {
+      const response = await fetch(`${PROJECT_SERVER_URL}/api/requirements/${requirementId}`, {
+        method: 'DELETE',
+      });
 
-        if (!response.ok) {
-          throw new Error(`Failed to delete requirement: ${response.statusText}`);
-        }
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `要件を削除しました: ${requirementId}`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `エラー: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            },
-          ],
-          isError: true,
-        };
+      if (!response.ok) {
+        throw new Error(`Failed to delete requirement: ${response.statusText}`);
       }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `要件を削除しました: ${requirementId}`,
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `エラー: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          },
+        ],
+        isError: true,
+      };
     }
-  );
+  });
 
   // Tool: get_requirements
-  server.tool(
-    'get_requirements',
-    getRequirementsSchema,
-    async ({ projectId }) => {
-      try {
-        const response = await fetch(`${PROJECT_SERVER_URL}/api/projects/${projectId}/requirements`);
+  server.tool('get_requirements', getRequirementsSchema, async ({ projectId }) => {
+    try {
+      const response = await fetch(`${PROJECT_SERVER_URL}/api/projects/${projectId}/requirements`);
 
-        if (!response.ok) {
-          throw new Error(`Failed to fetch requirements: ${response.statusText}`);
-        }
-
-        const requirements = await response.json();
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `プロジェクトの要件 (${requirements.length}件):\n\n${requirements
-                .map(
-                  (r: any) =>
-                    `📋 ${r.id}\n   タイトル: ${r.title}\n   タイプ: ${r.type}\n   優先度: ${r.priority}\n   ステータス: ${r.status}`
-                )
-                .join('\n\n')}`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `エラー: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            },
-          ],
-          isError: true,
-        };
+      if (!response.ok) {
+        throw new Error(`Failed to fetch requirements: ${response.statusText}`);
       }
+
+      const requirements = await response.json();
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `プロジェクトの要件 (${requirements.length}件):\n\n${requirements
+              .map(
+                (r: any) =>
+                  `📋 ${r.id}\n   タイトル: ${r.title}\n   タイプ: ${r.type}\n   優先度: ${r.priority}\n   ステータス: ${r.status}`
+              )
+              .join('\n\n')}`,
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `エラー: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          },
+        ],
+        isError: true,
+      };
     }
-  );
+  });
 
   return server;
 }
@@ -739,11 +709,11 @@ function createMCPServer() {
 // Main function
 async function main() {
   console.error('Claude Code Parallel MCP Server (STDIO) starting...');
-  
+
   const server = createMCPServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  
+
   console.error('MCP Server running in STDIO mode');
 }
 

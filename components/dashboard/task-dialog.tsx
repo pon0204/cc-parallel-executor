@@ -1,14 +1,26 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, ListTodo } from 'lucide-react';
 import type { Task } from '@/lib/api/client';
+import { ListTodo, Plus } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 interface TaskDialogProps {
   projectId: string;
@@ -36,12 +48,7 @@ const statusOptions = [
   { value: 'failed', label: '失敗' },
 ];
 
-export function TaskDialog({ 
-  projectId, 
-  task, 
-  onSave, 
-  trigger 
-}: TaskDialogProps) {
+export function TaskDialog({ projectId, task, onSave, trigger }: TaskDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -95,11 +102,11 @@ export function TaskDialog({
       const saveData: any = {
         ...formData,
         projectId: task ? undefined : projectId,
-        estimatedDurationMinutes: formData.estimatedDurationMinutes 
-          ? parseInt(formData.estimatedDurationMinutes) 
+        estimatedDurationMinutes: formData.estimatedDurationMinutes
+          ? Number.parseInt(formData.estimatedDurationMinutes)
           : undefined,
       };
-      
+
       await onSave(saveData);
       setOpen(false);
     } catch (error) {
@@ -118,9 +125,7 @@ export function TaskDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {trigger || defaultTrigger}
-      </DialogTrigger>
+      <DialogTrigger asChild>{trigger || defaultTrigger}</DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -157,7 +162,10 @@ export function TaskDialog({
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="taskType">タイプ</Label>
-              <Select value={formData.taskType} onValueChange={(value) => setFormData({ ...formData, taskType: value })}>
+              <Select
+                value={formData.taskType}
+                onValueChange={(value) => setFormData({ ...formData, taskType: value })}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -173,7 +181,12 @@ export function TaskDialog({
 
             <div className="space-y-2">
               <Label htmlFor="priority">優先度</Label>
-              <Select value={formData.priority.toString()} onValueChange={(value) => setFormData({ ...formData, priority: parseInt(value) })}>
+              <Select
+                value={formData.priority.toString()}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, priority: Number.parseInt(value) })
+                }
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -189,7 +202,10 @@ export function TaskDialog({
 
             <div className="space-y-2">
               <Label htmlFor="status">ステータス</Label>
-              <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
+              <Select
+                value={formData.status}
+                onValueChange={(value) => setFormData({ ...formData, status: value })}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -223,7 +239,9 @@ export function TaskDialog({
               id="estimatedDuration"
               type="number"
               value={formData.estimatedDurationMinutes}
-              onChange={(e) => setFormData({ ...formData, estimatedDurationMinutes: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, estimatedDurationMinutes: e.target.value })
+              }
               placeholder="例: 30"
               min="1"
             />
@@ -233,9 +251,11 @@ export function TaskDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="mcpEnabled">MCP有効</Label>
-              <Select 
-                value={formData.mcpEnabled.toString()} 
-                onValueChange={(value) => setFormData({ ...formData, mcpEnabled: value === 'true' })}
+              <Select
+                value={formData.mcpEnabled.toString()}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, mcpEnabled: value === 'true' })
+                }
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -249,9 +269,11 @@ export function TaskDialog({
 
             <div className="space-y-2">
               <Label htmlFor="ultrathinkProtocol">Ultrathinkプロトコル</Label>
-              <Select 
-                value={formData.ultrathinkProtocol.toString()} 
-                onValueChange={(value) => setFormData({ ...formData, ultrathinkProtocol: value === 'true' })}
+              <Select
+                value={formData.ultrathinkProtocol.toString()}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, ultrathinkProtocol: value === 'true' })
+                }
               >
                 <SelectTrigger>
                   <SelectValue />

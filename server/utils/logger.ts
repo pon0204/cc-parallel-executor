@@ -1,5 +1,5 @@
-import winston from 'winston';
 import path from 'path';
+import winston from 'winston';
 
 const logDir = process.env.LOG_DIR || './logs';
 const logLevel = process.env.LOG_LEVEL || 'info';

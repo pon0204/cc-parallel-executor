@@ -1,16 +1,17 @@
-import './globals.css'
-import { Providers } from '@/lib/providers'
-import { Toaster } from '@/components/ui/toaster'
+import './globals.css';
+import { Toaster } from '@/components/ui/toaster';
+import { Providers } from '@/lib/providers';
+import type { ReactNode } from 'react';
 
 export const metadata = {
   title: 'CC Parallel Execution System',
   description: 'Claude Code並列実行システム',
-}
+};
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: ReactNode;
 }) {
   return (
     <html lang="ja" className="dark">
@@ -21,5 +22,5 @@ export default function RootLayout({
         </Providers>
       </body>
     </html>
-  )
+  );
 }

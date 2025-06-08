@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import { z } from 'zod';
-import YAML from 'yaml';
-import { prisma } from '../utils/prisma.js';
-import { logger } from '../utils/logger.js';
-import { validateRequest } from '../utils/validation.js';
 import type { Request, Response } from 'express';
+import YAML from 'yaml';
+import { z } from 'zod';
+import { logger } from '../utils/logger.js';
+import { prisma } from '../utils/prisma.js';
+import { validateRequest } from '../utils/validation.js';
 
 export const taskRouter = Router();
 
@@ -27,10 +27,12 @@ const TaskDefinitionSchema = z.object({
     id: z.string(),
     name: z.string(),
   }),
-  settings: z.object({
-    max_parallel_cc: z.number().default(5),
-    default_timeout: z.number().default(300),
-  }).optional(),
+  settings: z
+    .object({
+      max_parallel_cc: z.number().default(5),
+      default_timeout: z.number().default(300),
+    })
+    .optional(),
   tasks: z.array(TaskSchema),
 });
 
@@ -69,7 +71,7 @@ taskRouter.post('/upload/:projectId', async (req: Request, res: Response) => {
       taskDefinition = TaskDefinitionSchema.parse(parsed);
     } catch (error) {
       logger.warn('Invalid task definition:', error);
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Invalid task definition format',
         details: error instanceof Error ? error.message : 'Unknown error',
       });
@@ -108,7 +110,7 @@ taskRouter.post('/upload/:projectId', async (req: Request, res: Response) => {
     for (const taskDef of taskDefinition.tasks) {
       if (taskDef.dependencies && taskDef.dependencies.length > 0) {
         const taskId = taskMap.get(taskDef.id)!;
-        
+
         for (const depId of taskDef.dependencies) {
           const dependsOnId = taskMap.get(depId);
           if (dependsOnId) {
@@ -124,12 +126,12 @@ taskRouter.post('/upload/:projectId', async (req: Request, res: Response) => {
       }
     }
 
-    logger.info('Tasks uploaded:', { 
-      projectId, 
-      taskCount: taskDefinition.tasks.length 
+    logger.info('Tasks uploaded:', {
+      projectId,
+      taskCount: taskDefinition.tasks.length,
     });
 
-    res.json({ 
+    res.json({
       message: 'Tasks uploaded successfully',
       taskCount: taskDefinition.tasks.length,
     });
@@ -156,10 +158,7 @@ taskRouter.get('/project/:projectId', async (req: Request, res: Response) => {
           },
         },
       },
-      orderBy: [
-        { status: 'asc' },
-        { priority: 'desc' },
-      ],
+      orderBy: [{ status: 'asc' }, { priority: 'desc' }],
     });
 
     res.json(tasks);
@@ -206,8 +205,8 @@ taskRouter.patch('/:id/status', async (req: Request, res: Response) => {
     const validStatuses = ['pending', 'queued', 'running', 'completed', 'failed'];
 
     if (!validStatuses.includes(status)) {
-      return res.status(400).json({ 
-        error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` 
+      return res.status(400).json({
+        error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
       });
     }
 
@@ -252,10 +251,8 @@ taskRouter.get('/ready/:projectId', async (req: Request, res: Response) => {
     });
 
     // Filter tasks that have no pending dependencies
-    const readyTasks = pendingTasks.filter(task => {
-      return task.dependencies.every(dep => 
-        dep.dependencyTask.status === 'completed'
-      );
+    const readyTasks = pendingTasks.filter((task) => {
+      return task.dependencies.every((dep) => dep.dependencyTask.status === 'completed');
     });
 
     res.json(readyTasks);
@@ -269,7 +266,7 @@ taskRouter.get('/ready/:projectId', async (req: Request, res: Response) => {
 taskRouter.post('/', validateRequest(CreateTaskSchema), async (req: Request, res: Response) => {
   try {
     const data = req.body as z.infer<typeof CreateTaskSchema>;
-    
+
     // Verify project exists
     const project = await prisma.project.findUnique({
       where: { id: data.projectId },
@@ -324,7 +321,7 @@ taskRouter.post('/', validateRequest(CreateTaskSchema), async (req: Request, res
 taskRouter.put('/:id', validateRequest(UpdateTaskSchema), async (req: Request, res: Response) => {
   try {
     const data = req.body as z.infer<typeof UpdateTaskSchema>;
-    
+
     // Format data for update
     const updateData: any = {};
     if (data.name !== undefined) updateData.name = data.name;
@@ -336,8 +333,10 @@ taskRouter.put('/:id', validateRequest(UpdateTaskSchema), async (req: Request, r
     if (data.inputData !== undefined) updateData.inputData = JSON.stringify(data.inputData);
     if (data.outputData !== undefined) updateData.outputData = JSON.stringify(data.outputData);
     if (data.mcpEnabled !== undefined) updateData.mcpEnabled = data.mcpEnabled;
-    if (data.ultrathinkProtocol !== undefined) updateData.ultrathinkProtocol = data.ultrathinkProtocol;
-    if (data.estimatedDurationMinutes !== undefined) updateData.estimatedDurationMinutes = data.estimatedDurationMinutes;
+    if (data.ultrathinkProtocol !== undefined)
+      updateData.ultrathinkProtocol = data.ultrathinkProtocol;
+    if (data.estimatedDurationMinutes !== undefined)
+      updateData.estimatedDurationMinutes = data.estimatedDurationMinutes;
 
     const task = await prisma.task.update({
       where: { id: req.params.id },
@@ -369,19 +368,39 @@ taskRouter.delete('/:id', async (req: Request, res: Response) => {
     });
 
     if (childTaskCount > 0) {
-      return res.status(400).json({ 
-        error: 'Cannot delete task with child tasks. Please delete child tasks first.' 
+      return res.status(400).json({
+        error: 'Cannot delete task with child tasks. Please delete child tasks first.',
       });
+    }
+
+    // Get task details including assigned CC instance
+    const task = await prisma.task.findUnique({
+      where: { id: req.params.id },
+      include: {
+        assignedCCInstance: true,
+      },
+    });
+
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    // Stop any CC instances associated with this task
+    const ccService = req.app.get('ccService');
+    if (ccService) {
+      await ccService.stopCCForTask(task.id);
     }
 
     // Delete dependencies first
     await prisma.taskDependency.deleteMany({
       where: {
-        OR: [
-          { taskId: req.params.id },
-          { dependencyTaskId: req.params.id },
-        ],
+        OR: [{ taskId: req.params.id }, { dependencyTaskId: req.params.id }],
       },
+    });
+
+    // Delete task logs
+    await prisma.taskLog.deleteMany({
+      where: { taskId: req.params.id },
     });
 
     // Delete the task
@@ -457,7 +476,10 @@ taskRouter.delete('/:id/dependencies/:depId', async (req: Request, res: Response
       },
     });
 
-    logger.info('Task dependency removed:', { taskId: req.params.id, dependencyId: req.params.depId });
+    logger.info('Task dependency removed:', {
+      taskId: req.params.id,
+      dependencyId: req.params.depId,
+    });
     res.status(204).send();
   } catch (error) {
     logger.error('Failed to remove task dependency:', error);

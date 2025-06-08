@@ -24,9 +24,5 @@
     "tsx": "^4.0.0",
     "typescript": "^5.0.0"
   },
-  "keywords": [
-    "mcp",
-    "claude-code",
-    "parallel-execution"
-  ]
+  "keywords": ["mcp", "claude-code", "parallel-execution"]
 }
