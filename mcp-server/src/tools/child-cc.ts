@@ -36,7 +36,7 @@ export class ChildCCManager {
         type: 'child',
         status: 'running',
         worktreePath,
-        parentInstanceId: options.parentInstanceId,
+        projectId: options.projectId,
       });
 
       return {
@@ -134,7 +134,7 @@ export class ChildCCManager {
         env: {
           ...process.env,
           CC_INSTANCE_ID: instanceId,
-          CC_PARENT_ID: options.parentInstanceId,
+          CC_PROJECT_ID: options.projectId,
           CC_TASK_ID: options.taskId,
         },
       });
@@ -172,7 +172,7 @@ export class ChildCCManager {
 タスク実行指示:
 
 タスクID: ${options.taskId}
-親CCインスタンス: ${options.parentInstanceId}
+プロジェクトID: ${options.projectId}
 
 作業指示:
 ${options.instruction}

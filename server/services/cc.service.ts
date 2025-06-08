@@ -135,19 +135,19 @@ export class CCService {
   async createChildCC(
     socket: Socket,
     data: {
-      parentInstanceId: string;
+      projectId: string;
       taskId: string;
       instruction: string;
     }
   ) {
     try {
-      // Get parent CC session
-      const parentSession = Array.from(this.sessions.values()).find(
-        (s) => s.instanceId === data.parentInstanceId
-      );
+      // Verify project exists
+      const project = await prisma.project.findUnique({
+        where: { id: data.projectId },
+      });
 
-      if (!parentSession) {
-        socket.emit('cc:error', { message: 'Parent CC not found' });
+      if (!project) {
+        socket.emit('cc:error', { message: 'Project not found' });
         return;
       }
 
@@ -175,7 +175,7 @@ export class CCService {
           type: 'child',
           status: 'running',
           socketId: socket.id,
-          parentInstanceId: data.parentInstanceId,
+          projectId: data.projectId,
           worktreePath,
         },
       });
@@ -195,6 +195,7 @@ export class CCService {
       const session: CCSession = {
         instanceId: instance.id,
         socketId: socket.id,
+        projectId: data.projectId,
         taskId: task.id,
         type: 'child',
         worktreePath,
@@ -208,7 +209,7 @@ export class CCService {
           CC_INSTANCE_ID: instance.id,
           CC_TYPE: 'child',
           CC_TASK_ID: task.id,
-          CC_PARENT_ID: data.parentInstanceId,
+          CC_PROJECT_ID: data.projectId,
         },
       });
 
@@ -526,7 +527,7 @@ ${message}
    */
   async startChildCC(options: {
     instanceId: string;
-    parentInstanceId: string;
+    projectId: string;
     taskId: string;
     instruction: string;
     projectWorkdir: string;

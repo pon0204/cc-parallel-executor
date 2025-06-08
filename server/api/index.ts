@@ -3,6 +3,7 @@ import { ccRouter } from './cc.js';
 import { projectRouter } from './projects.js';
 import { requirementRouter } from './requirements.js';
 import { taskRouter } from './tasks.js';
+import { qualityCheckRouter } from './quality-check.js';
 
 export const apiRouter = Router();
 
@@ -11,6 +12,7 @@ apiRouter.use('/projects', projectRouter);
 apiRouter.use('/tasks', taskRouter);
 apiRouter.use('/cc', ccRouter);
 apiRouter.use('/requirements', requirementRouter);
+apiRouter.use('/quality-check', qualityCheckRouter);
 
 // API root endpoint
 apiRouter.get('/', (req, res) => {
@@ -22,6 +24,7 @@ apiRouter.get('/', (req, res) => {
       tasks: '/api/tasks',
       cc: '/api/cc',
       requirements: '/api/requirements',
+      qualityCheck: '/api/quality-check',
     },
   });
 });

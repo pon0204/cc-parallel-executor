@@ -16,7 +16,7 @@ export interface Task {
 }
 
 export interface ChildCCOptions {
-  parentInstanceId: string;
+  projectId: string;
   taskId: string;
   instruction: string;
   projectWorkdir: string;
@@ -36,7 +36,6 @@ export interface CCInstance {
   type: 'parent' | 'child';
   status: 'idle' | 'running' | 'stopped' | 'error';
   worktreePath?: string;
-  parentInstanceId?: string;
   processId?: string;
   createdAt: string;
   lastHeartbeat?: string;

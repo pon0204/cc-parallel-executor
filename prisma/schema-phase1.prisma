@@ -1,5 +1,6 @@
-// Claude Code Terminal - 革命的MCPアーキテクチャ対応 Prisma Schema
-// Model Context Protocol + ultrathink プロトコル完全対応
+// Claude Code Terminal - Phase 1 スキーマ
+// シンプルな品質保証と並列実行対応
+// 既存のschema.prismaへの最小限の追加
 
 generator client {
   provider = "prisma-client-js"
@@ -10,7 +11,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// プロジェクト管理（MCP対応）
+// ==================== 既存モデルへの追加 ====================
+
+// プロジェクト管理（変更なし）
 model Project {
   id          String   @id @default(cuid())
   name        String
@@ -30,11 +33,12 @@ model Project {
   requirements Requirement[]
   features    Feature[]
   gitWorktrees GitWorktree[]
+  executionPhases ExecutionPhase[]  // 追加
 
   @@map("projects")
 }
 
-// タスク管理（MCP並列実行対応）
+// タスク管理（品質チェック結果を追加）
 model Task {
   id            String    @id @default(cuid())
   projectId     String    @map("project_id")
@@ -43,12 +47,19 @@ model Task {
   description   String?
   status        String @default("PENDING")
   priority      Int       @default(5)
-  taskType      String    @map("task_type")
+  taskType      String    @map("task_type")  // "setup", "database", "backend", "frontend", "test", "deploy"
   assignedTo    String?   @map("assigned_to")
   instruction   String?
   inputData     String?   @map("input_data")
   outputData    String?   @map("output_data")
   worktreePath  String?   @map("worktree_path")
+  
+  // Phase 1 追加フィールド（シンプルな品質チェック）
+  lastLintResult    Boolean? @map("last_lint_result")
+  lastBuildResult   Boolean? @map("last_build_result")
+  lastTestResult    Boolean? @map("last_test_result")
+  qualityCheckAt    DateTime? @map("quality_check_at")
+  
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt      @map("updated_at")
   queuedAt      DateTime? @map("queued_at")
@@ -68,6 +79,32 @@ model Task {
   @@map("tasks")
 }
 
+// ==================== Phase 1 新規モデル ====================
+
+// 実行フェーズ（並列実行グループ）
+model ExecutionPhase {
+  id             String   @id @default(cuid())
+  projectId      String   @map("project_id")
+  phaseNumber    Int      @map("phase_number")
+  name           String   // "Setup", "Database", "Development", "Testing", "Deploy"
+  status         String   @default("pending") // "pending", "running", "completed", "failed"
+  
+  // Phase 1 品質チェック
+  qualityCheckPassed Boolean @default(false) @map("quality_check_passed")
+  qualityCheckAt     DateTime? @map("quality_check_at")
+  qualityCheckResult String?   @map("quality_check_result") // JSON形式の結果
+  
+  startedAt      DateTime? @map("started_at")
+  completedAt    DateTime? @map("completed_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  
+  project        Project  @relation(fields: [projectId], references: [id])
+  
+  @@map("execution_phases")
+}
+
+// ==================== 既存モデル（変更なし） ====================
+
 // タスク依存関係
 model TaskDependency {
   id               String @id @default(cuid())
@@ -82,13 +119,14 @@ model TaskDependency {
   @@map("task_dependencies")
 }
 
-// CCインスタンス管理
+// CCインスタンス管理（親子階層）
 model CCInstance {
   id                String    @id @default(cuid())
   projectId         String?   @map("project_id")
   name              String
   type              String    @default("PARENT")
   status            String    @default("IDLE")
+  parentInstanceId  String?   @map("parent_instance_id")
   worktreePath      String?   @map("worktree_path")
   processId         String?   @map("process_id")
   socketId          String?   @map("socket_id")
@@ -102,6 +140,8 @@ model CCInstance {
   terminatedAt      DateTime? @map("terminated_at")
   exitCode          Int?      @map("exit_code")
   
+  parentInstance    CCInstance? @relation("CCHierarchy", fields: [parentInstanceId], references: [id])
+  childInstances    CCInstance[] @relation("CCHierarchy")
   assignedTasks     Task[]
   logs              CCLog[]
   sentUltrathinkMessages     UltrathinkMessage[] @relation("ParentInstance")
@@ -111,7 +151,6 @@ model CCInstance {
 
   @@map("cc_instances")
 }
-
 
 // MCPメッセージログ（JSON-RPC 2.0準拠）
 model MCPMessage {
@@ -287,8 +326,18 @@ model Feature {
   @@map("features")
 }
 
-// Note: SQLite doesn't support enums, using String with constraints
-// Valid values:
-// - TaskStatus: "PENDING", "QUEUED", "RUNNING", "COMPLETED", "FAILED"
-// - CCType: "PARENT", "CHILD"
-// - CCStatus: "IDLE", "RUNNING", "STOPPED", "ERROR"
+// ==================== Phase 1 で追加する値の定義 ====================
+
+// TaskType の推奨値:
+// - "setup": 環境構築、依存関係インストール
+// - "database": DB設計、マイグレーション、スキーマ作成
+// - "backend": バックエンド実装（API、ビジネスロジック）
+// - "frontend": フロントエンド実装（UI、コンポーネント）
+// - "test": テスト（E2E、統合テスト）
+// - "deploy": デプロイ、リリース
+
+// ExecutionPhase.status の値:
+// - "pending": 未実行
+// - "running": 実行中
+// - "completed": 完了
+// - "failed": 失敗

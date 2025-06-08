@@ -15,9 +15,9 @@ const CreateParentCCSchema = z.object({
 
 const CreateChildCCSchema = z.object({
   projectId: z.string(),
-  parentInstanceId: z.string(),
   taskId: z.string(),
   instruction: z.string(),
+  projectWorkdir: z.string(),
   name: z.string().optional(),
 });
 
@@ -113,6 +113,7 @@ ccRouter.post(
           name: name || `Parent CC - ${project.name}`,
           type: 'parent',
           status: 'idle',
+          projectId,  // Add projectId
         },
       });
 
@@ -135,22 +136,13 @@ ccRouter.post(
   validateRequest(CreateChildCCSchema),
   async (req: Request, res: Response) => {
     try {
-      const { projectId, parentInstanceId, taskId, instruction, name } = req.body as z.infer<
+      const { projectId, taskId, instruction, projectWorkdir, name } = req.body as z.infer<
         typeof CreateChildCCSchema
       >;
 
       const sessionId = req.headers['x-session-id'] as string;
 
-      // Verify parent exists and is active
-      const parent = await prisma.cCInstance.findUnique({
-        where: { id: parentInstanceId },
-      });
-
-      if (!parent || parent.type !== 'parent') {
-        return res.status(404).json({ error: 'Parent CC not found' });
-      }
-
-      // Verify project and task exist
+      // Verify project exists
       const project = await prisma.project.findUnique({
         where: { id: projectId },
       });
@@ -161,6 +153,7 @@ ccRouter.post(
 
       const task = await prisma.task.findUnique({
         where: { id: taskId },
+        include: { project: true },
       });
 
       if (!task) {
@@ -171,14 +164,14 @@ ccRouter.post(
       await prisma.task.update({
         where: { id: taskId },
         data: {
-          status: 'running',
+          status: 'RUNNING',
           startedAt: new Date(),
         },
       });
 
       // Generate worktree name
       const worktreeName = `worktree-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-      const worktreePath = `${project.workdir}/../${worktreeName}`;
+      const worktreePath = `${projectWorkdir}/../${worktreeName}`;
 
       // Create CC instance record
       const instance = await prisma.cCInstance.create({
@@ -186,8 +179,8 @@ ccRouter.post(
           name: name || `Child CC - ${task.name}`,
           type: 'child',
           status: 'running',
-          parentInstanceId,
           worktreePath,
+          projectId: task.projectId,  // Add projectId from task
         },
       });
 
@@ -202,7 +195,6 @@ ccRouter.post(
 
       logger.info('Child CC creation started:', {
         instanceId: instance.id,
-        parentInstanceId,
         taskId,
         projectId,
         sessionId,
@@ -216,7 +208,7 @@ ccRouter.post(
       ccService
         .startChildCC({
           instanceId: instance.id,
-          parentInstanceId,
+          projectId,
           taskId,
           instruction,
           projectWorkdir: project.workdir,
@@ -371,7 +363,7 @@ ccRouter.delete('/:id', async (req: Request, res: Response) => {
     // Delete child instances first if this is a parent
     if (instance.type === 'parent') {
       await prisma.cCInstance.deleteMany({
-        where: { parentInstanceId: instance.id },
+        where: { projectId: instance.projectId },
       });
     }
 

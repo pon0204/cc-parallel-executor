@@ -47,6 +47,8 @@ Thumbs.db
 prisma/*.db
 prisma/*.db-journal
 prisma/migrations/
+mcp-server/prisma/*.db
+mcp-server/prisma/*.db-journal
 
 # Logs
 logs/

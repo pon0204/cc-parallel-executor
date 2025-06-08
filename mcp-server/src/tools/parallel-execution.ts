@@ -92,30 +92,73 @@ export class ParallelExecutionPlanner {
   static estimateDependencies(tasks: Task[]): TaskDependency[] {
     const dependencies: TaskDependency[] = [];
 
-    // タスクタイプによる依存関係の推定
-    const typeOrder = ['setup', 'backend', 'frontend', 'test', 'deploy'];
+    // 開発フローに基づいた依存関係の定義
+    const findTasksByKeywords = (keywords: string[], taskType?: string) => {
+      return tasks.filter((t) => {
+        const nameMatch = keywords.some(kw => 
+          t.name.toLowerCase().includes(kw.toLowerCase()) ||
+          (t.description && t.description.toLowerCase().includes(kw.toLowerCase()))
+        );
+        const typeMatch = !taskType || t.taskType === taskType;
+        return nameMatch && typeMatch;
+      });
+    };
 
     tasks.forEach((task) => {
       const deps: string[] = [];
-      const taskTypeIndex = typeOrder.indexOf(task.taskType || 'general');
+      const taskName = task.name.toLowerCase();
+      const taskDesc = (task.description || '').toLowerCase();
 
-      if (taskTypeIndex > 0) {
-        // 前のタイプのタスクに依存
-        const prevType = typeOrder[taskTypeIndex - 1];
-        const prevTypeTasks = tasks.filter((t) => t.taskType === prevType);
-        deps.push(...prevTypeTasks.map((t) => t.id));
+      // 1. Setup/環境構築タスクは依存なし（最初に実行）
+      if (task.taskType === 'setup' || 
+          taskName.includes('setup') || 
+          taskName.includes('環境') ||
+          taskName.includes('install')) {
+        // 依存なし
       }
-
-      // 名前によるヒューリスティック
-      if (task.name.toLowerCase().includes('test')) {
-        // テストは実装タスクに依存
-        const implTasks = tasks.filter(
-          (t) =>
-            t.id !== task.id &&
-            !t.name.toLowerCase().includes('test') &&
-            (t.taskType === 'backend' || t.taskType === 'frontend')
-        );
-        deps.push(...implTasks.map((t) => t.id));
+      
+      // 2. DB/Schema関連タスクはSetupに依存
+      else if (task.taskType === 'database' ||
+               taskName.includes('database') ||
+               taskName.includes('db') ||
+               taskName.includes('migration') ||
+               taskName.includes('schema') ||
+               taskName.includes('prisma')) {
+        const setupTasks = findTasksByKeywords(['setup', '環境', 'install'], 'setup');
+        deps.push(...setupTasks.map(t => t.id));
+      }
+      
+      // 3. Backend/Frontend実装タスクはDB/Schemaに依存
+      else if (task.taskType === 'backend' || task.taskType === 'frontend') {
+        const dbTasks = findTasksByKeywords(['database', 'db', 'migration', 'schema', 'prisma'], 'database');
+        deps.push(...dbTasks.map(t => t.id));
+        
+        // TDD: バックエンドのテスト作成タスクは実装タスクより先
+        if (task.taskType === 'backend' && !taskName.includes('test')) {
+          const backendTestTasks = tasks.filter(t => 
+            t.taskType === 'backend' && 
+            (t.name.toLowerCase().includes('test') || t.name.toLowerCase().includes('tdd'))
+          );
+          deps.push(...backendTestTasks.map(t => t.id));
+        }
+      }
+      
+      // 4. E2EテストはBackend/Frontend実装に依存
+      else if (task.taskType === 'test' || 
+               taskName.includes('e2e') ||
+               taskName.includes('integration')) {
+        const backendTasks = tasks.filter(t => t.taskType === 'backend' && !t.name.toLowerCase().includes('test'));
+        const frontendTasks = tasks.filter(t => t.taskType === 'frontend');
+        deps.push(...backendTasks.map(t => t.id));
+        deps.push(...frontendTasks.map(t => t.id));
+      }
+      
+      // 5. デプロイはE2Eテストに依存
+      else if (task.taskType === 'deploy' ||
+               taskName.includes('deploy') ||
+               taskName.includes('release')) {
+        const e2eTasks = findTasksByKeywords(['e2e', 'integration', 'test'], 'test');
+        deps.push(...e2eTasks.map(t => t.id));
       }
 
       if (deps.length > 0) {

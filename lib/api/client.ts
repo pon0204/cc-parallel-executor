@@ -147,7 +147,6 @@ export const CCInstanceSchema = z.object({
   type: z.enum(['parent', 'child']),
   status: z.enum(['idle', 'running', 'stopped', 'error']),
   worktreePath: z.string().nullable(),
-  parentInstanceId: z.string().nullable(),
   processId: z.string().nullable(),
   socketId: z.string().nullable(),
   createdAt: z.string(),
@@ -258,7 +257,6 @@ export const api = {
       }),
     createChild: (data: {
       projectId: string;
-      parentInstanceId: string;
       taskId: string;
       instruction: string;
       name?: string;

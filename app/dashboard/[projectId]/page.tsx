@@ -247,7 +247,7 @@ export default function ProjectDashboardPage() {
         projectId: project.id,
         taskId: task.id,
         instruction: instruction,
-        parentInstanceId: parentCC?.id || 'default',
+        projectWorkdir: project.workdir,
       });
 
       // Update task status to running
