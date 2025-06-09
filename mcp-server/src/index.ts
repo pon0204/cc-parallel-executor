@@ -33,7 +33,7 @@ const getAvailableTasksSchema = {
 const updateTaskStatusSchema = {
   taskId: z.string().describe('ID of the task'),
   status: z
-    .enum(['pending', 'queued', 'running', 'completed', 'failed'])
+    .enum(['PENDING', 'QUEUED', 'RUNNING', 'COMPLETED', 'FAILED'])
     .describe('New status of the task'),
   result: z.string().optional().describe('Result or output of the task execution'),
 };
@@ -443,7 +443,7 @@ function createMCPServer() {
             projectId,
             name,
             description,
-            status: 'pending',
+            status: 'PENDING',
             priority: priority || 5,
             taskType: taskType || 'general',
             instruction,
@@ -779,7 +779,7 @@ function createMCPServer() {
         const allTasks = await tasksResponse.json();
 
         const pendingTasks = allTasks.filter((task: any) =>
-          ['pending', 'queued', 'PENDING', 'QUEUED'].includes(task.status)
+          ['PENDING', 'QUEUED'].includes(task.status)
         );
 
         if (pendingTasks.length === 0) {

@@ -6,7 +6,7 @@ export interface Task {
   projectId: string;
   name: string;
   description?: string;
-  status: 'pending' | 'queued' | 'running' | 'completed' | 'failed';
+  status: 'PENDING' | 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
   priority: number;
   taskType: string;
   instruction?: string;
@@ -33,8 +33,8 @@ export interface ChildCCResult {
 export interface CCInstance {
   id: string;
   name: string;
-  type: 'parent' | 'child';
-  status: 'idle' | 'running' | 'stopped' | 'error';
+  type: 'PARENT' | 'CHILD';
+  status: 'IDLE' | 'RUNNING' | 'STOPPED' | 'ERROR';
   worktreePath?: string;
   processId?: string;
   createdAt: string;

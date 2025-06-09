@@ -24,7 +24,15 @@ qualityCheckRouter.post('/tasks/:taskId/check', async (req, res) => {
     }
 
     const workdir = task.worktreePath || task.project.workdir;
-    const results: any = {
+    const results: {
+      taskId: string;
+      timestamp: Date;
+      checks: Record<string, {
+        passed: boolean;
+        output?: string;
+        errors?: string;
+      }>;
+    } = {
       taskId,
       timestamp: new Date(),
       checks: {}

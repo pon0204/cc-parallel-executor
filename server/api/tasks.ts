@@ -17,9 +17,9 @@ const TaskSchema = z.object({
   priority: z.number().min(1).max(10).default(5),
   dependencies: z.array(z.string()).optional(),
   instruction: z.string().optional(),
-  config: z.record(z.any()).optional(),
-  input: z.record(z.any()).optional(),
-  output: z.record(z.any()).optional(),
+  config: z.record(z.unknown()).optional(),
+  input: z.record(z.unknown()).optional(),
+  output: z.record(z.unknown()).optional(),
 });
 
 const TaskDefinitionSchema = z.object({
@@ -45,8 +45,8 @@ const CreateTaskSchema = z.object({
   priority: z.number().int().min(1).max(10).default(5),
   taskType: z.string().default('general'),
   instruction: z.string().optional(),
-  inputData: z.record(z.any()).optional(),
-  outputData: z.record(z.any()).optional(),
+  inputData: z.record(z.unknown()).optional(),
+  outputData: z.record(z.unknown()).optional(),
   mcpEnabled: z.boolean().default(true),
   ultrathinkProtocol: z.boolean().default(true),
   estimatedDurationMinutes: z.number().int().optional(),
@@ -210,7 +210,11 @@ taskRouter.patch('/:id/status', async (req: Request, res: Response) => {
       });
     }
 
-    const updateData: any = { status };
+    const updateData: {
+      status: string;
+      startedAt?: Date;
+      completedAt?: Date;
+    } = { status };
 
     // Set timestamps based on status
     if (status === 'running' && !req.body.startedAt) {
@@ -323,7 +327,19 @@ taskRouter.put('/:id', validateRequest(UpdateTaskSchema), async (req: Request, r
     const data = req.body as z.infer<typeof UpdateTaskSchema>;
 
     // Format data for update
-    const updateData: any = {};
+    const updateData: {
+      name?: string;
+      description?: string;
+      status?: string;
+      priority?: number;
+      taskType?: string;
+      instruction?: string;
+      inputData?: string;
+      outputData?: string;
+      mcpEnabled?: boolean;
+      ultrathinkProtocol?: boolean;
+      estimatedDurationMinutes?: number;
+    } = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.description !== undefined) updateData.description = data.description;
     if (data.status !== undefined) updateData.status = data.status.toUpperCase();
