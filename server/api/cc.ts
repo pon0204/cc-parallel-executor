@@ -29,17 +29,15 @@ ccRouter.get('/', async (req: Request, res: Response) => {
     const instances = await prisma.cCInstance.findMany({
       where: projectId
         ? {
-            // For now, we'll use a workaround since we don't have direct projectId in CCInstance
-            // We'll filter by checking related tasks or by name pattern
-            OR: [
-              { name: { contains: projectId as string } },
-              // Add more filtering logic as needed
-            ],
+            projectId: projectId as string,
           }
         : undefined,
       include: {
-        parentInstance: true,
-        childInstances: true,
+        assignedTasks: true,
+        logs: {
+          take: 10,
+          orderBy: { createdAt: 'desc' },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -56,12 +54,13 @@ ccRouter.get('/:id', async (req: Request, res: Response) => {
     const instance = await prisma.cCInstance.findUnique({
       where: { id: req.params.id },
       include: {
-        parentInstance: true,
-        childInstances: true,
+        assignedTasks: true,
         logs: {
           orderBy: { createdAt: 'desc' },
           take: 100,
         },
+        sentUltrathinkMessages: true,
+        receivedUltrathinkMessages: true,
       },
     });
 
@@ -96,9 +95,9 @@ ccRouter.post(
       // Check if parent CC already exists for this project
       const existingParent = await prisma.cCInstance.findFirst({
         where: {
-          type: 'parent',
-          status: { in: ['idle', 'running'] },
-          // We'll need to add projectId to CCInstance model or track it differently
+          type: 'PARENT',
+          status: { in: ['IDLE', 'RUNNING'] },
+          projectId,
         },
       });
 
@@ -111,9 +110,9 @@ ccRouter.post(
       const instance = await prisma.cCInstance.create({
         data: {
           name: name || `Parent CC - ${project.name}`,
-          type: 'parent',
-          status: 'idle',
-          projectId,  // Add projectId
+          type: 'PARENT',
+          status: 'IDLE',
+          projectId,
         },
       });
 
@@ -177,10 +176,10 @@ ccRouter.post(
       const instance = await prisma.cCInstance.create({
         data: {
           name: name || `Child CC - ${task.name}`,
-          type: 'child',
-          status: 'running',
+          type: 'CHILD',
+          status: 'RUNNING',
           worktreePath,
-          projectId: task.projectId,  // Add projectId from task
+          projectId: task.projectId,
         },
       });
 
@@ -220,11 +219,11 @@ ccRouter.post(
           // Update status to error
           prisma.cCInstance.update({
             where: { id: instance.id },
-            data: { status: 'error' },
+            data: { status: 'ERROR' },
           });
           prisma.task.update({
             where: { id: taskId },
-            data: { status: 'failed' },
+            data: { status: 'FAILED' },
           });
         });
 
@@ -246,7 +245,7 @@ ccRouter.post(
 ccRouter.patch('/:id/status', async (req: Request, res: Response) => {
   try {
     const { status } = req.body;
-    const validStatuses = ['idle', 'running', 'stopped', 'error'];
+    const validStatuses = ['IDLE', 'RUNNING', 'STOPPED', 'ERROR'];
 
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
@@ -327,7 +326,7 @@ ccRouter.post('/:id/stop', async (req: Request, res: Response) => {
     // Update instance status
     await prisma.cCInstance.update({
       where: { id: instance.id },
-      data: { status: 'stopped' },
+      data: { status: 'STOPPED' },
     });
 
     // Update associated tasks
@@ -335,7 +334,7 @@ ccRouter.post('/:id/stop', async (req: Request, res: Response) => {
       await prisma.task.updateMany({
         where: { assignedTo: instance.id },
         data: {
-          status: 'failed',
+          status: 'FAILED',
           completedAt: new Date(),
         },
       });
@@ -361,9 +360,12 @@ ccRouter.delete('/:id', async (req: Request, res: Response) => {
     }
 
     // Delete child instances first if this is a parent
-    if (instance.type === 'parent') {
+    if (instance.type === 'PARENT') {
       await prisma.cCInstance.deleteMany({
-        where: { projectId: instance.projectId },
+        where: { 
+          projectId: instance.projectId,
+          type: 'CHILD',
+        },
       });
     }
 
