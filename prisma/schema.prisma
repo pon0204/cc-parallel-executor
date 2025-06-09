@@ -30,6 +30,7 @@ model Project {
   requirements Requirement[]
   features    Feature[]
   gitWorktrees GitWorktree[]
+  executionPhases ExecutionPhase[]  // 追加
 
   @@map("projects")
 }
@@ -43,12 +44,19 @@ model Task {
   description   String?
   status        String @default("PENDING")
   priority      Int       @default(5)
-  taskType      String    @map("task_type")
+  taskType      String    @map("task_type")  // "setup", "database", "backend", "frontend", "test", "deploy"
   assignedTo    String?   @map("assigned_to")
   instruction   String?
   inputData     String?   @map("input_data")
   outputData    String?   @map("output_data")
   worktreePath  String?   @map("worktree_path")
+  
+  // Phase 1 追加フィールド（シンプルな品質チェック）
+  lastLintResult    Boolean? @map("last_lint_result")
+  lastBuildResult   Boolean? @map("last_build_result")
+  lastTestResult    Boolean? @map("last_test_result")
+  qualityCheckAt    DateTime? @map("quality_check_at")
+  
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt      @map("updated_at")
   queuedAt      DateTime? @map("queued_at")
@@ -286,6 +294,46 @@ model Feature {
 
   @@map("features")
 }
+
+// ==================== Phase 1 新規モデル ====================
+
+// 実行フェーズ（並列実行グループ）
+model ExecutionPhase {
+  id             String   @id @default(cuid())
+  projectId      String   @map("project_id")
+  phaseNumber    Int      @map("phase_number")
+  name           String   // "Setup", "Database", "Development", "Testing", "Deploy"
+  status         String   @default("pending") // "pending", "running", "completed", "failed"
+  
+  // Phase 1 品質チェック
+  qualityCheckPassed Boolean @default(false) @map("quality_check_passed")
+  qualityCheckAt     DateTime? @map("quality_check_at")
+  qualityCheckResult String?   @map("quality_check_result") // JSON形式の結果
+  
+  startedAt      DateTime? @map("started_at")
+  completedAt    DateTime? @map("completed_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  
+  project        Project  @relation(fields: [projectId], references: [id])
+  
+  @@map("execution_phases")
+}
+
+// ==================== Phase 1 で追加する値の定義 ====================
+
+// TaskType の推奨値:
+// - "setup": 環境構築、依存関係インストール
+// - "database": DB設計、マイグレーション、スキーマ作成
+// - "backend": バックエンド実装（API、ビジネスロジック）
+// - "frontend": フロントエンド実装（UI、コンポーネント）
+// - "test": テスト（E2E、統合テスト）
+// - "deploy": デプロイ、リリース
+
+// ExecutionPhase.status の値:
+// - "pending": 未実行
+// - "running": 実行中
+// - "completed": 完了
+// - "failed": 失敗
 
 // Note: SQLite doesn't support enums, using String with constraints
 // Valid values:

@@ -4,6 +4,7 @@ import { projectRouter } from './projects.js';
 import { requirementRouter } from './requirements.js';
 import { taskRouter } from './tasks.js';
 import { qualityCheckRouter } from './quality-check.js';
+import { executionPhasesRouter } from './execution-phases.js';
 
 export const apiRouter = Router();
 
@@ -13,6 +14,7 @@ apiRouter.use('/tasks', taskRouter);
 apiRouter.use('/cc', ccRouter);
 apiRouter.use('/requirements', requirementRouter);
 apiRouter.use('/quality-check', qualityCheckRouter);
+apiRouter.use('/execution-phases', executionPhasesRouter);
 
 // API root endpoint
 apiRouter.get('/', (req, res) => {
@@ -25,6 +27,7 @@ apiRouter.get('/', (req, res) => {
       cc: '/api/cc',
       requirements: '/api/requirements',
       qualityCheck: '/api/quality-check',
+      executionPhases: '/api/execution-phases',
     },
   });
 });
