@@ -133,7 +133,24 @@ npm run dev:server
 
 # ターミナル 3: MCP Server (STDIO)
 cd mcp-server && npm install && npm run build
-# Claude CLIに登録: claude mcp add claude-code-parallel "bun $(pwd)/src/index.ts"
+```
+
+### MCP サーバー設定
+
+**必要なMCPサーバーをClaude CLIに登録:**
+
+```bash
+# 1. claude-code-parallel (本プロジェクト)
+claude mcp add claude-code-parallel -- ~/.bun/bin/bun /path/to/cc-parallel-executor/mcp-server/src/index.ts
+
+# 2. context7 (コンテキスト管理)
+claude mcp add context7 -- npx -y @upstash/context7-mcp
+
+# 3. puppeteer (ブラウザ自動化)
+claude mcp add puppeteer -- npx @modelcontextprotocol/server-puppeteer
+
+# 登録確認
+claude mcp list
 ```
 
 **🌐 アクセス:**
@@ -593,10 +610,18 @@ cd claude-code-terminal
 # 2. 依存関係インストール
 npm install
 cd mcp-server && npm install && cd ..
-# MCPサーバーをClaude CLIに登録
-claude mcp add claude-code-parallel "bun $(pwd)/mcp-server/src/index.ts"
 
-# 3. 開発環境起動
+# 3. MCP サーバー登録
+# claude-code-parallel (本プロジェクト)
+claude mcp add claude-code-parallel -- ~/.bun/bin/bun $(pwd)/mcp-server/src/index.ts
+
+# context7 (コンテキスト管理)
+claude mcp add context7 -- npx -y @upstash/context7-mcp
+
+# puppeteer (ブラウザ自動化)
+claude mcp add puppeteer -- npx @modelcontextprotocol/server-puppeteer
+
+# 4. 開発環境起動
 npm run dev  # 全サーバー同時起動
 ```
 
