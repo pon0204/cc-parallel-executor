@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { logger } from '../utils/logger.js';
 import { prisma } from '../utils/prisma.js';
 import { validateRequest } from '../utils/validation.js';
+import { TaskStatus, TASK_STATUS_ARRAY } from '../utils/constants.js';
 
 export const taskRouter = Router();
 
@@ -202,11 +203,9 @@ taskRouter.get('/:id', async (req: Request, res: Response) => {
 taskRouter.patch('/:id/status', async (req: Request, res: Response) => {
   try {
     const { status } = req.body;
-    const validStatuses = ['pending', 'queued', 'running', 'completed', 'failed'];
-
-    if (!validStatuses.includes(status)) {
+    if (!TASK_STATUS_ARRAY.includes(status)) {
       return res.status(400).json({
-        error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
+        error: `Invalid status. Must be one of: ${TASK_STATUS_ARRAY.join(', ')}`,
       });
     }
 
@@ -217,9 +216,9 @@ taskRouter.patch('/:id/status', async (req: Request, res: Response) => {
     } = { status };
 
     // Set timestamps based on status
-    if (status === 'running' && !req.body.startedAt) {
+    if (status === TaskStatus.RUNNING && !req.body.startedAt) {
       updateData.startedAt = new Date();
-    } else if ((status === 'completed' || status === 'failed') && !req.body.completedAt) {
+    } else if ((status === TaskStatus.COMPLETED || status === TaskStatus.FAILED) && !req.body.completedAt) {
       updateData.completedAt = new Date();
     }
 
@@ -243,7 +242,7 @@ taskRouter.get('/ready/:projectId', async (req: Request, res: Response) => {
     const pendingTasks = await prisma.task.findMany({
       where: {
         projectId: req.params.projectId,
-        status: 'pending',
+        status: TaskStatus.PENDING,
       },
       include: {
         dependencies: {
@@ -256,7 +255,7 @@ taskRouter.get('/ready/:projectId', async (req: Request, res: Response) => {
 
     // Filter tasks that have no pending dependencies
     const readyTasks = pendingTasks.filter((task) => {
-      return task.dependencies.every((dep) => dep.dependencyTask.status === 'completed');
+      return task.dependencies.every((dep) => dep.dependencyTask.status === TaskStatus.COMPLETED);
     });
 
     res.json(readyTasks);
@@ -297,7 +296,7 @@ taskRouter.post('/', validateRequest(CreateTaskSchema), async (req: Request, res
         parentTaskId: data.parentTaskId,
         name: data.name,
         description: data.description,
-        status: (data.status || 'PENDING').toUpperCase(),
+        status: (data.status || TaskStatus.PENDING).toUpperCase(),
         priority: data.priority,
         taskType: data.taskType,
         instruction: data.instruction,

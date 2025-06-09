@@ -8,6 +8,7 @@ import { CCService } from './services/cc.service.js';
 import { TerminalService } from './services/terminal.service.js';
 import { logger } from './utils/logger.js';
 import { prisma } from './utils/prisma.js';
+import { errorHandler, notFoundHandler } from './utils/errors.js';
 
 const app = express();
 const server = createServer(app);
@@ -85,11 +86,11 @@ io.on('connection', (socket) => {
   });
 });
 
-// Error handling
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  logger.error('Unhandled error:', err);
-  res.status(500).json({ error: 'Internal server error' });
-});
+// 404 handler (must come after all routes)
+app.use(notFoundHandler);
+
+// Global error handling middleware (must be last)
+app.use(errorHandler);
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
