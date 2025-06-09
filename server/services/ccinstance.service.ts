@@ -103,7 +103,7 @@ export class CCInstanceService {
 
       // Validate parent belongs to same project
       if (parentInstance.projectId !== data.projectId) {
-        throw ErrorFactory.validation('Parent instance must belong to the same project');
+        throw ErrorFactory.badRequest('Parent instance must belong to the same project');
       }
     }
 
@@ -116,13 +116,13 @@ export class CCInstanceService {
 
       // Validate task belongs to same project
       if (task.projectId !== data.projectId) {
-        throw ErrorFactory.validation('Task must belong to the same project');
+        throw ErrorFactory.badRequest('Task must belong to the same project');
       }
 
       // Check if task already has an active instance
       const existingInstance = await this.ccInstanceRepository.findByTaskId(data.taskId);
       if (existingInstance && [CCInstanceStatusConstants.STARTING, CCInstanceStatusConstants.RUNNING, CCInstanceStatusConstants.WAITING].includes(existingInstance.status)) {
-        throw ErrorFactory.validation('Task already has an active CC instance', { 
+        throw ErrorFactory.badRequest('Task already has an active CC instance', { 
           taskId: data.taskId, 
           existingInstanceId: existingInstance.id 
         });
@@ -131,7 +131,7 @@ export class CCInstanceService {
 
     // Validate instance type
     if (!Object.values(CCInstanceTypeConstants).includes(data.type as any)) {
-      throw ErrorFactory.validation('Invalid CC instance type', { 
+      throw ErrorFactory.badRequest('Invalid CC instance type', { 
         type: data.type, 
         validTypes: Object.values(CCInstanceTypeConstants) 
       });
@@ -142,7 +142,7 @@ export class CCInstanceService {
     const maxParallel = project.maxParallelCCs || 5;
     
     if (activeInstances.length >= maxParallel) {
-      throw ErrorFactory.validation(`Maximum parallel CC instances limit reached (${maxParallel})`, {
+      throw ErrorFactory.badRequest(`Maximum parallel CC instances limit reached (${maxParallel})`, {
         currentActive: activeInstances.length,
         maxParallel
       });
@@ -152,7 +152,7 @@ export class CCInstanceService {
     if (data.worktreePath) {
       const existingWorktree = await this.ccInstanceRepository.findByWorktreePath(data.worktreePath);
       if (existingWorktree) {
-        throw ErrorFactory.validation('Worktree path already in use', { 
+        throw ErrorFactory.badRequest('Worktree path already in use', { 
           worktreePath: data.worktreePath, 
           existingInstanceId: existingWorktree.id 
         });
@@ -182,7 +182,7 @@ export class CCInstanceService {
     if (data.worktreePath && data.worktreePath !== existingInstance.worktreePath) {
       const existingWorktree = await this.ccInstanceRepository.findByWorktreePath(data.worktreePath);
       if (existingWorktree && existingWorktree.id !== id) {
-        throw ErrorFactory.validation('Worktree path already in use', { 
+        throw ErrorFactory.badRequest('Worktree path already in use', { 
           worktreePath: data.worktreePath, 
           existingInstanceId: existingWorktree.id 
         });
@@ -195,7 +195,7 @@ export class CCInstanceService {
   async updateCCInstanceStatus(id: string, status: CCInstanceStatus): Promise<CCInstance> {
     // Validate status
     if (!Object.values(CCInstanceStatusConstants).includes(status as any)) {
-      throw ErrorFactory.validation('Invalid CC instance status', { 
+      throw ErrorFactory.badRequest('Invalid CC instance status', { 
         status, 
         validStatuses: Object.values(CCInstanceStatusConstants) 
       });
@@ -211,7 +211,7 @@ export class CCInstanceService {
 
   async updateCCInstanceProgress(id: string, progress: number): Promise<CCInstance> {
     if (progress < 0 || progress > 100) {
-      throw ErrorFactory.validation('Progress must be between 0 and 100', { progress });
+      throw ErrorFactory.badRequest('Progress must be between 0 and 100', { progress });
     }
 
     return this.ccInstanceRepository.updateProgress(id, progress);
@@ -227,7 +227,7 @@ export class CCInstanceService {
     );
 
     if (activeChildren.length > 0 && !force) {
-      throw ErrorFactory.validation('Cannot terminate instance with active children. Use force=true to terminate all.', {
+      throw ErrorFactory.badRequest('Cannot terminate instance with active children. Use force=true to terminate all.', {
         activeChildren: activeChildren.length
       });
     }
@@ -248,7 +248,7 @@ export class CCInstanceService {
     // Check if instance has children
     const childInstances = await this.ccInstanceRepository.findByParentId(id);
     if (childInstances.length > 0 && !soft) {
-      throw ErrorFactory.validation('Cannot hard delete instance with child instances. Use soft delete or delete children first.');
+      throw ErrorFactory.badRequest('Cannot hard delete instance with child instances. Use soft delete or delete children first.');
     }
 
     if (soft) {
@@ -383,7 +383,7 @@ export class CCInstanceService {
 
   async getInstancesByWorktreePattern(pattern: string): Promise<CCInstance[]> {
     if (!pattern || pattern.trim().length === 0) {
-      throw ErrorFactory.validation('Worktree pattern cannot be empty');
+      throw ErrorFactory.badRequest('Worktree pattern cannot be empty');
     }
 
     return this.ccInstanceRepository.findInstancesByWorktreePattern(pattern.trim());
@@ -401,7 +401,7 @@ export class CCInstanceService {
     };
 
     if (!validTransitions[currentStatus]?.includes(newStatus)) {
-      throw ErrorFactory.validation(
+      throw ErrorFactory.badRequest(
         `Invalid status transition from ${currentStatus} to ${newStatus}`,
         { 
           currentStatus, 

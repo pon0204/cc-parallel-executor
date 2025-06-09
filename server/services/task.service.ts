@@ -1,37 +1,51 @@
-import { Task, TaskStatus as PrismaTaskStatus, TaskType, Priority } from '@prisma/client';
 import { ITaskRepository } from '../repositories/task.repository';
 import { IProjectRepository } from '../repositories/project.repository';
 import { AppError, ErrorFactory } from '../utils/errors';
-import { TaskStatus, TaskType as TaskTypeConstants, Priority as PriorityConstants } from '../utils/constants';
+import { TaskStatus, TaskType as TaskTypeConstants } from '../utils/constants';
 
 export interface CreateTaskData {
-  title: string;
+  name: string;
   description?: string;
   projectId: string;
-  parentId?: string;
-  type: TaskType;
-  priority: Priority;
-  estimatedMinutes?: number;
-  tags?: string[];
-  yamlContent?: string;
+  parentTaskId?: string;
+  taskType: string;
+  priority: number;
+  instruction?: string;
+  inputData?: string;
 }
 
 export interface UpdateTaskData {
-  title?: string;
+  name?: string;
   description?: string;
-  type?: TaskType;
-  priority?: Priority;
-  estimatedMinutes?: number;
-  tags?: string[];
-  yamlContent?: string;
-  parentId?: string;
+  taskType?: string;
+  priority?: number;
+  instruction?: string;
+  inputData?: string;
+  outputData?: string;
+  parentTaskId?: string;
 }
 
-export interface TaskWithRelations extends Task {
-  dependencies?: Task[];
-  dependents?: Task[];
-  children?: Task[];
-  parent?: Task;
+export interface TaskWithRelations {
+  id: string;
+  projectId: string;
+  parentTaskId?: string | null;
+  name: string;
+  description?: string | null;
+  status: string;
+  priority: number;
+  taskType: string;
+  assignedTo?: string | null;
+  instruction?: string | null;
+  inputData?: string | null;
+  outputData?: string | null;
+  worktreePath?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  completedAt?: Date | null;
+  dependencies?: any[];
+  dependents?: any[];
+  children?: any[];
+  parent?: any;
 }
 
 export class TaskService {
@@ -40,7 +54,7 @@ export class TaskService {
     private projectRepository: IProjectRepository
   ) {}
 
-  async getTaskById(id: string): Promise<Task> {
+  async getTaskById(id: string): Promise<any> {
     const task = await this.taskRepository.findById(id);
     if (!task) {
       throw ErrorFactory.notFound('Task', id);
@@ -48,7 +62,7 @@ export class TaskService {
     return task;
   }
 
-  async getTasksByProjectId(projectId: string): Promise<Task[]> {
+  async getTasksByProjectId(projectId: string): Promise<any[]> {
     // Validate project exists
     await this.projectRepository.findById(projectId);
     if (!await this.projectRepository.findById(projectId)) {
@@ -61,7 +75,7 @@ export class TaskService {
   async getTasksByStatus(status: PrismaTaskStatus): Promise<Task[]> {
     // Validate status
     if (!Object.values(TaskStatus).includes(status as any)) {
-      throw ErrorFactory.validation('Invalid task status', { status, validStatuses: Object.values(TaskStatus) });
+      throw ErrorFactory.badRequest('Invalid task status', { status, validStatuses: Object.values(TaskStatus) });
     }
 
     return this.taskRepository.findByStatus(status);
@@ -83,114 +97,103 @@ export class TaskService {
     return this.taskRepository.findByParentId(parentId);
   }
 
-  async createTask(data: CreateTaskData): Promise<Task> {
+  async createTask(data: CreateTaskData): Promise<any> {
     // Validate project exists
     if (!await this.projectRepository.findById(data.projectId)) {
       throw ErrorFactory.notFound('Project', data.projectId);
     }
 
     // Validate parent task exists if provided
-    if (data.parentId) {
-      const parentTask = await this.taskRepository.findById(data.parentId);
+    if (data.parentTaskId) {
+      const parentTask = await this.taskRepository.findById(data.parentTaskId);
       if (!parentTask) {
-        throw ErrorFactory.notFound('Parent task', data.parentId);
+        throw ErrorFactory.notFound('Parent task', data.parentTaskId);
       }
 
       // Validate parent belongs to same project
       if (parentTask.projectId !== data.projectId) {
-        throw ErrorFactory.validation('Parent task must belong to the same project');
+        throw ErrorFactory.badRequest('Parent task must belong to the same project');
       }
     }
 
     // Validate task type
-    if (!Object.values(TaskTypeConstants).includes(data.type as any)) {
-      throw ErrorFactory.validation('Invalid task type', { 
-        type: data.type, 
+    if (!Object.values(TaskTypeConstants).includes(data.taskType as any)) {
+      throw ErrorFactory.badRequest('Invalid task type', { 
+        type: data.taskType, 
         validTypes: Object.values(TaskTypeConstants) 
       });
     }
 
     // Validate priority
-    if (!Object.values(PriorityConstants).includes(data.priority as any)) {
-      throw ErrorFactory.validation('Invalid priority', { 
-        priority: data.priority, 
-        validPriorities: Object.values(PriorityConstants) 
-      });
-    }
-
-    // Validate estimated minutes
-    if (data.estimatedMinutes !== undefined && data.estimatedMinutes < 0) {
-      throw ErrorFactory.validation('Estimated minutes must be non-negative');
+    if (data.priority < 1 || data.priority > 10) {
+      throw ErrorFactory.badRequest('Priority must be between 1 and 10');
     }
 
     const taskData = {
       ...data,
-      status: TaskStatus.PENDING as PrismaTaskStatus,
-      progress: 0,
-      tags: data.tags || [],
-      estimatedMinutes: data.estimatedMinutes || null,
-      yamlContent: data.yamlContent || null,
-      deletedAt: null
+      status: TaskStatus.PENDING,
+      assignedTo: null,
+      outputData: null,
+      worktreePath: null,
+      lastLintResult: null,
+      lastBuildResult: null,
+      lastTestResult: null,
+      qualityCheckAt: null,
+      queuedAt: null,
+      startedAt: null,
+      completedAt: null
     };
 
     return this.taskRepository.create(taskData);
   }
 
-  async updateTask(id: string, data: UpdateTaskData): Promise<Task> {
+  async updateTask(id: string, data: UpdateTaskData): Promise<any> {
     const existingTask = await this.getTaskById(id);
 
     // Validate parent task if being updated
-    if (data.parentId !== undefined) {
-      if (data.parentId === id) {
-        throw ErrorFactory.validation('Task cannot be its own parent');
+    if (data.parentTaskId !== undefined) {
+      if (data.parentTaskId === id) {
+        throw ErrorFactory.badRequest('Task cannot be its own parent');
       }
 
-      if (data.parentId) {
-        const parentTask = await this.taskRepository.findById(data.parentId);
+      if (data.parentTaskId) {
+        const parentTask = await this.taskRepository.findById(data.parentTaskId);
         if (!parentTask) {
-          throw ErrorFactory.notFound('Parent task', data.parentId);
+          throw ErrorFactory.notFound('Parent task', data.parentTaskId);
         }
 
         // Validate parent belongs to same project
         if (parentTask.projectId !== existingTask.projectId) {
-          throw ErrorFactory.validation('Parent task must belong to the same project');
+          throw ErrorFactory.badRequest('Parent task must belong to the same project');
         }
 
         // Prevent circular dependencies
-        if (await this.wouldCreateCircularDependency(id, data.parentId)) {
-          throw ErrorFactory.validation('Cannot create circular dependency');
+        if (await this.wouldCreateCircularDependency(id, data.parentTaskId)) {
+          throw ErrorFactory.badRequest('Cannot create circular dependency');
         }
       }
     }
 
     // Validate task type if being updated
-    if (data.type && !Object.values(TaskTypeConstants).includes(data.type as any)) {
-      throw ErrorFactory.validation('Invalid task type', { 
-        type: data.type, 
+    if (data.taskType && !Object.values(TaskTypeConstants).includes(data.taskType as any)) {
+      throw ErrorFactory.badRequest('Invalid task type', { 
+        type: data.taskType, 
         validTypes: Object.values(TaskTypeConstants) 
       });
     }
 
     // Validate priority if being updated
-    if (data.priority && !Object.values(PriorityConstants).includes(data.priority as any)) {
-      throw ErrorFactory.validation('Invalid priority', { 
-        priority: data.priority, 
-        validPriorities: Object.values(PriorityConstants) 
-      });
-    }
-
-    // Validate estimated minutes if being updated
-    if (data.estimatedMinutes !== undefined && data.estimatedMinutes < 0) {
-      throw ErrorFactory.validation('Estimated minutes must be non-negative');
+    if (data.priority !== undefined && (data.priority < 1 || data.priority > 10)) {
+      throw ErrorFactory.badRequest('Priority must be between 1 and 10');
     }
 
     return this.taskRepository.update(id, data);
   }
 
-  async updateTaskStatus(id: string, status: PrismaTaskStatus): Promise<Task> {
+  async updateTaskStatus(id: string, status: string): Promise<any> {
     // Validate status
     if (!Object.values(TaskStatus).includes(status as any)) {
-      throw ErrorFactory.validation('Invalid task status', { 
+      throw ErrorFactory.badRequest('Invalid task status', { 
         status, 
         validStatuses: Object.values(TaskStatus) 
       });
@@ -204,9 +207,9 @@ export class TaskService {
     return this.taskRepository.updateStatus(id, status);
   }
 
-  async updateTaskProgress(id: string, progress: number): Promise<Task> {
+  async updateTaskProgress(id: string, progress: number): Promise<any> {
     if (progress < 0 || progress > 100) {
-      throw ErrorFactory.validation('Progress must be between 0 and 100', { progress });
+      throw ErrorFactory.badRequest('Progress must be between 0 and 100', { progress });
     }
 
     return this.taskRepository.updateProgress(id, progress);
@@ -218,7 +221,7 @@ export class TaskService {
     // Check if task has children
     const childTasks = await this.taskRepository.findByParentId(id);
     if (childTasks.length > 0 && !soft) {
-      throw ErrorFactory.validation('Cannot hard delete task with child tasks. Use soft delete or delete children first.');
+      throw ErrorFactory.badRequest('Cannot hard delete task with child tasks. Use soft delete or delete children first.');
     }
 
     if (soft) {
@@ -228,7 +231,7 @@ export class TaskService {
     }
   }
 
-  async getTaskWithDependencies(id: string): Promise<TaskWithRelations> {
+  async getTaskWithDependencies(id: string): Promise<any> {
     const task = await this.taskRepository.findTaskWithDependencies(id);
     if (!task) {
       throw ErrorFactory.notFound('Task', id);
@@ -246,7 +249,7 @@ export class TaskService {
   }
 
   async analyzeTaskDependencies(projectId: string): Promise<{
-    phases: { phase: number; tasks: Task[] }[];
+    phases: { phase: number; tasks: any[] }[];
     totalPhases: number;
     parallelizable: boolean;
   }> {
@@ -257,17 +260,17 @@ export class TaskService {
     }
 
     // Simple dependency analysis based on task types and names
-    const phases: { phase: number; tasks: Task[] }[] = [];
+    const phases: { phase: number; tasks: any[] }[] = [];
     const assignedTasks = new Set<string>();
     let currentPhase = 1;
 
-    // Phase 1: Infrastructure tasks (DATABASE, ENVIRONMENT, SETUP)
+    // Phase 1: Infrastructure tasks (database, setup)
     const phase1Tasks = tasks.filter(task => 
       !assignedTasks.has(task.id) &&
-      (task.type === 'DATABASE' || 
-       task.type === 'ENVIRONMENT' ||
-       task.title.toLowerCase().includes('setup') ||
-       task.title.toLowerCase().includes('config'))
+      (task.taskType === 'database' || 
+       task.taskType === 'setup' ||
+       task.name.toLowerCase().includes('setup') ||
+       task.name.toLowerCase().includes('config'))
     );
     if (phase1Tasks.length > 0) {
       phases.push({ phase: currentPhase++, tasks: phase1Tasks });
@@ -277,9 +280,8 @@ export class TaskService {
     // Phase 2: Backend and Frontend development
     const phase2Tasks = tasks.filter(task => 
       !assignedTasks.has(task.id) &&
-      (task.type === 'BACKEND' || 
-       task.type === 'FRONTEND' ||
-       task.type === 'API')
+      (task.taskType === 'backend' || 
+       task.taskType === 'frontend')
     );
     if (phase2Tasks.length > 0) {
       phases.push({ phase: currentPhase++, tasks: phase2Tasks });
@@ -289,9 +291,9 @@ export class TaskService {
     // Phase 3: Testing and Integration
     const phase3Tasks = tasks.filter(task => 
       !assignedTasks.has(task.id) &&
-      (task.type === 'TESTING' || 
-       task.title.toLowerCase().includes('test') ||
-       task.title.toLowerCase().includes('integration'))
+      (task.taskType === 'test' || 
+       task.name.toLowerCase().includes('test') ||
+       task.name.toLowerCase().includes('integration'))
     );
     if (phase3Tasks.length > 0) {
       phases.push({ phase: currentPhase++, tasks: phase3Tasks });
@@ -301,10 +303,9 @@ export class TaskService {
     // Phase 4: Deployment and Documentation
     const phase4Tasks = tasks.filter(task => 
       !assignedTasks.has(task.id) &&
-      (task.type === 'DEPLOYMENT' || 
-       task.type === 'DOCUMENTATION' ||
-       task.title.toLowerCase().includes('deploy') ||
-       task.title.toLowerCase().includes('doc'))
+      (task.taskType === 'deploy' || 
+       task.name.toLowerCase().includes('deploy') ||
+       task.name.toLowerCase().includes('doc'))
     );
     if (phase4Tasks.length > 0) {
       phases.push({ phase: currentPhase++, tasks: phase4Tasks });
@@ -341,7 +342,7 @@ export class TaskService {
     };
 
     if (!validTransitions[currentStatus]?.includes(newStatus)) {
-      throw ErrorFactory.validation(
+      throw ErrorFactory.badRequest(
         `Invalid status transition from ${currentStatus} to ${newStatus}`,
         { currentStatus, newStatus, validTransitions: validTransitions[currentStatus] }
       );
@@ -360,7 +361,7 @@ export class TaskService {
 
       visited.add(currentParentId);
       const parentTask = await this.taskRepository.findById(currentParentId);
-      currentParentId = parentTask?.parentId || null;
+      currentParentId = parentTask?.parentTaskId || null;
     }
 
     return false;

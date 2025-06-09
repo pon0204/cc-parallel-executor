@@ -68,7 +68,7 @@ export class RequirementService {
   async getRequirementsByStatus(status: PrismaRequirementStatus): Promise<Requirement[]> {
     // Validate status
     if (!Object.values(RequirementStatus).includes(status as any)) {
-      throw ErrorFactory.validation('Invalid requirement status', { 
+      throw ErrorFactory.badRequest('Invalid requirement status', { 
         status, 
         validStatuses: Object.values(RequirementStatus) 
       });
@@ -80,7 +80,7 @@ export class RequirementService {
   async getRequirementsByType(type: RequirementType): Promise<Requirement[]> {
     // Validate type
     if (!Object.values(RequirementTypeConstants).includes(type as any)) {
-      throw ErrorFactory.validation('Invalid requirement type', { 
+      throw ErrorFactory.badRequest('Invalid requirement type', { 
         type, 
         validTypes: Object.values(RequirementTypeConstants) 
       });
@@ -120,13 +120,13 @@ export class RequirementService {
 
       // Validate parent belongs to same project
       if (parentRequirement.projectId !== data.projectId) {
-        throw ErrorFactory.validation('Parent requirement must belong to the same project');
+        throw ErrorFactory.badRequest('Parent requirement must belong to the same project');
       }
     }
 
     // Validate requirement type
     if (!Object.values(RequirementTypeConstants).includes(data.type as any)) {
-      throw ErrorFactory.validation('Invalid requirement type', { 
+      throw ErrorFactory.badRequest('Invalid requirement type', { 
         type: data.type, 
         validTypes: Object.values(RequirementTypeConstants) 
       });
@@ -134,7 +134,7 @@ export class RequirementService {
 
     // Validate priority
     if (!Object.values(PriorityConstants).includes(data.priority as any)) {
-      throw ErrorFactory.validation('Invalid priority', { 
+      throw ErrorFactory.badRequest('Invalid priority', { 
         priority: data.priority, 
         validPriorities: Object.values(PriorityConstants) 
       });
@@ -142,12 +142,12 @@ export class RequirementService {
 
     // Validate estimated hours
     if (data.estimatedHours !== undefined && data.estimatedHours < 0) {
-      throw ErrorFactory.validation('Estimated hours must be non-negative');
+      throw ErrorFactory.badRequest('Estimated hours must be non-negative');
     }
 
     // Validate acceptance criteria
     if (data.acceptanceCriteria && data.acceptanceCriteria.length === 0) {
-      throw ErrorFactory.validation('Acceptance criteria cannot be empty array');
+      throw ErrorFactory.badRequest('Acceptance criteria cannot be empty array');
     }
 
     const requirementData = {
@@ -170,7 +170,7 @@ export class RequirementService {
     // Validate parent requirement if being updated
     if (data.parentId !== undefined) {
       if (data.parentId === id) {
-        throw ErrorFactory.validation('Requirement cannot be its own parent');
+        throw ErrorFactory.badRequest('Requirement cannot be its own parent');
       }
 
       if (data.parentId) {
@@ -181,19 +181,19 @@ export class RequirementService {
 
         // Validate parent belongs to same project
         if (parentRequirement.projectId !== existingRequirement.projectId) {
-          throw ErrorFactory.validation('Parent requirement must belong to the same project');
+          throw ErrorFactory.badRequest('Parent requirement must belong to the same project');
         }
 
         // Prevent circular dependencies
         if (await this.wouldCreateCircularDependency(id, data.parentId)) {
-          throw ErrorFactory.validation('Cannot create circular dependency');
+          throw ErrorFactory.badRequest('Cannot create circular dependency');
         }
       }
     }
 
     // Validate requirement type if being updated
     if (data.type && !Object.values(RequirementTypeConstants).includes(data.type as any)) {
-      throw ErrorFactory.validation('Invalid requirement type', { 
+      throw ErrorFactory.badRequest('Invalid requirement type', { 
         type: data.type, 
         validTypes: Object.values(RequirementTypeConstants) 
       });
@@ -201,7 +201,7 @@ export class RequirementService {
 
     // Validate priority if being updated
     if (data.priority && !Object.values(PriorityConstants).includes(data.priority as any)) {
-      throw ErrorFactory.validation('Invalid priority', { 
+      throw ErrorFactory.badRequest('Invalid priority', { 
         priority: data.priority, 
         validPriorities: Object.values(PriorityConstants) 
       });
@@ -209,12 +209,12 @@ export class RequirementService {
 
     // Validate estimated hours if being updated
     if (data.estimatedHours !== undefined && data.estimatedHours < 0) {
-      throw ErrorFactory.validation('Estimated hours must be non-negative');
+      throw ErrorFactory.badRequest('Estimated hours must be non-negative');
     }
 
     // Validate acceptance criteria if being updated
     if (data.acceptanceCriteria && data.acceptanceCriteria.length === 0) {
-      throw ErrorFactory.validation('Acceptance criteria cannot be empty array');
+      throw ErrorFactory.badRequest('Acceptance criteria cannot be empty array');
     }
 
     return this.requirementRepository.update(id, data);
@@ -223,7 +223,7 @@ export class RequirementService {
   async updateRequirementStatus(id: string, status: PrismaRequirementStatus): Promise<Requirement> {
     // Validate status
     if (!Object.values(RequirementStatus).includes(status as any)) {
-      throw ErrorFactory.validation('Invalid requirement status', { 
+      throw ErrorFactory.badRequest('Invalid requirement status', { 
         status, 
         validStatuses: Object.values(RequirementStatus) 
       });
@@ -243,7 +243,7 @@ export class RequirementService {
     // Check if requirement has children
     const childRequirements = await this.requirementRepository.findByParentId(id);
     if (childRequirements.length > 0 && !soft) {
-      throw ErrorFactory.validation('Cannot hard delete requirement with child requirements. Use soft delete or delete children first.');
+      throw ErrorFactory.badRequest('Cannot hard delete requirement with child requirements. Use soft delete or delete children first.');
     }
 
     if (soft) {
@@ -268,7 +268,7 @@ export class RequirementService {
     }
 
     if (!tag || tag.trim().length === 0) {
-      throw ErrorFactory.validation('Tag cannot be empty');
+      throw ErrorFactory.badRequest('Tag cannot be empty');
     }
 
     return this.requirementRepository.findRequirementsByTag(projectId, tag.trim());
@@ -356,7 +356,7 @@ export class RequirementService {
     };
 
     if (!validTransitions[currentStatus]?.includes(newStatus)) {
-      throw ErrorFactory.validation(
+      throw ErrorFactory.badRequest(
         `Invalid status transition from ${currentStatus} to ${newStatus}`,
         { 
           currentStatus, 

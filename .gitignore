@@ -90,3 +90,10 @@ server-*.js
 # Removed files
 start-*.js
 run-*.js
+# Test files
+coverage/
+test-results/
+benchmark-results/
+*.bench.js
+test.db*
+.vitest/ < /dev/null
